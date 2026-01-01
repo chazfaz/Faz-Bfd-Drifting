@@ -48,76 +48,61 @@ canvas{display:block;}
 </div>
 
 <div id="hud">
-  Speed: <span id="speed">0</span> km/h | 
-  Drift Points: <span id="points">0</span> | 
-  Money: $<span id="money">0</span>
+Speed: <span id="speed">0</span> km/h | Drift: <span id="points">0</span> | Money: $<span id="money">0</span> | Mission: <span id="mission">None</span>
 </div>
 
 <div id="instructions">
-  WASD = Accelerate/Brake/Steer | SPACE = Handbrake Drift<br>
-  Explore the city, complete missions, avoid police!
+WASD = Accelerate/Brake/Steer | SPACE = Drift | Collect coins, complete missions!
 </div>
 
 <script>
-let isGameStarted=false;
+// =======================
+// Account System
+// =======================
+let username="";
 let driftPoints=0;
 let money=0;
-let username="";
+let upgrades={speed:1,handling:1,drift:1};
+let mission={active:false,pos:null,reward:0};
 
-// =======================
-// Account System (LocalStorage)
-// =======================
-function saveAccount(user,data){
-  localStorage.setItem('fd_account_'+user,JSON.stringify(data));
+function saveAccount(user){
+  localStorage.setItem('fd_account_'+user,JSON.stringify({password:loadAccount(user).password,driftPoints,money,upgrades,mission}));
 }
 function loadAccount(user){
   const data=localStorage.getItem('fd_account_'+user);
   return data?JSON.parse(data):null;
 }
+function hash(str){let h=0;for(let i=0;i<str.length;i++){h=((h<<5)-h)+str.charCodeAt(i);h|=0;}return h;}
 
-// Simple hash for demo
-function hash(str){
-  let h=0;for(let i=0;i<str.length;i++){h=((h<<5)-h)+str.charCodeAt(i);h|=0;}return h;
-}
-
-// Register
 document.getElementById('registerBtn').addEventListener('click',()=>{
   const user=document.getElementById('username').value.trim();
   const pass=document.getElementById('password').value;
   if(!user||!pass){document.getElementById('loginMsg').innerText="Enter username & password";return;}
   if(loadAccount(user)){document.getElementById('loginMsg').innerText="Username exists";return;}
-  saveAccount(user,{password:hash(pass),money:0,driftPoints:0});
+  localStorage.setItem('fd_account_'+user,JSON.stringify({password:hash(pass),driftPoints:0,money:0,upgrades:{speed:1,handling:1,drift:1},mission:{active:false,pos:null,reward:0}}));
   document.getElementById('loginMsg').innerText="Registered! You can login now.";
 });
 
-// Login
 document.getElementById('loginBtn').addEventListener('click',()=>{
   const user=document.getElementById('username').value.trim();
   const pass=document.getElementById('password').value;
   const acc=loadAccount(user);
   if(!acc){document.getElementById('loginMsg').innerText="Account not found";return;}
   if(acc.password!==hash(pass)){document.getElementById('loginMsg').innerText="Wrong password";return;}
-  username=user;
-  driftPoints=acc.driftPoints;
-  money=acc.money;
+  username=user; driftPoints=acc.driftPoints; money=acc.money; upgrades=acc.upgrades; mission=acc.mission;
   startGame();
 });
 
-// Save progress periodically
-setInterval(()=>{
-  if(username){
-    saveAccount(username,{password:loadAccount(username).password,driftPoints, money});
-  }
-},5000);
+setInterval(()=>{if(username) saveAccount(username);},5000);
 
 // =======================
-// Three.js Game Setup
+// Three.js Setup
 // =======================
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x87ceeb);
 scene.fog=new THREE.FogExp2(0x87ceeb,0.00025);
 const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,5000);
-camera.position.set(0,10,20);
+camera.position.set(0,15,30);
 
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth,window.innerHeight);
@@ -128,23 +113,24 @@ document.body.appendChild(renderer.domElement);
 const ambient=new THREE.AmbientLight(0x404040,0.6);
 scene.add(ambient);
 const dirLight=new THREE.DirectionalLight(0xffffff,1.2);
-dirLight.position.set(200,300,100); dirLight.castShadow=true; scene.add(dirLight);
+dirLight.position.set(50,100,50); dirLight.castShadow=true; scene.add(dirLight);
 
 // Ground
-const groundGeo=new THREE.PlaneGeometry(4000,4000);
+const groundGeo=new THREE.PlaneGeometry(1000,1000);
 const groundMat=new THREE.MeshLambertMaterial({color:0x222222});
 const ground=new THREE.Mesh(groundGeo,groundMat);
 ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
 
-// Simple Road Grid
-const gridSize=200;
-const lineMatWhite=new THREE.MeshLambertMaterial({color:0xffffff});
-const lineMatYellow=new THREE.MeshLambertMaterial({color:0xffff00});
-for(let i=-2000;i<=2000;i+=gridSize){
-  const hLine=new THREE.Mesh(new THREE.BoxGeometry(4000,0.3,8),lineMatWhite);
-  hLine.position.set(0,0.15,i); scene.add(hLine);
-  const vLine=new THREE.Mesh(new THREE.BoxGeometry(4000,0.3,8),lineMatYellow);
-  vLine.rotation.y=Math.PI/2; vLine.position.set(i,0.15,0); scene.add(vLine);
+// Small City Buildings
+const buildings=[];
+for(let i=0;i<12;i++){
+  const w=20+Math.random()*30,h=20+Math.random()*60,d=20+Math.random()*30;
+  const geo=new THREE.BoxGeometry(w,h,d);
+  const mat=new THREE.MeshLambertMaterial({color:0x888888*Math.random()});
+  const b=new THREE.Mesh(geo,mat);
+  b.position.set((Math.random()-0.5)*400, h/2, (Math.random()-0.5)*400);
+  b.castShadow=true; b.receiveShadow=true;
+  scene.add(b); buildings.push(b);
 }
 
 // Player Car
@@ -166,34 +152,34 @@ playerWheels[2].position.set(-1.2,-0.55,-1.6); playerWheels[3].position.set(1.2,
 
 scene.add(carGroup); carGroup.position.set(0,0.5,0);
 
+// Loot coins
+const coins=[];
+for(let i=0;i<20;i++){
+  const geo=new THREE.SphereGeometry(0.5,8,6);
+  const mat=new THREE.MeshStandardMaterial({color:0xffcc00});
+  const coin=new THREE.Mesh(geo,mat);
+  coin.position.set((Math.random()-0.5)*400,0.5,(Math.random()-0.5)*400);
+  scene.add(coin); coins.push(coin);
+}
+
+// =======================
 // Player Input
+// =======================
 const velocity=new THREE.Vector3();
 let moveForward=false,moveBackward=false,moveLeft=false,moveRight=false,handbrake=false;
 document.addEventListener('keydown',e=>{
-  switch(e.code){
-    case 'KeyW': moveForward=true; break;
-    case 'KeyS': moveBackward=true; break;
-    case 'KeyA': moveLeft=true; break;
-    case 'KeyD': moveRight=true; break;
-    case 'Space': handbrake=true; break;
-  }
+  switch(e.code){case 'KeyW': moveForward=true;break;case 'KeyS': moveBackward=true;break;
+  case 'KeyA': moveLeft=true;break;case 'KeyD': moveRight=true;break;case 'Space': handbrake=true;break;}
 });
 document.addEventListener('keyup',e=>{
-  switch(e.code){
-    case 'KeyW': moveForward=false; break;
-    case 'KeyS': moveBackward=false; break;
-    case 'KeyA': moveLeft=false; break;
-    case 'KeyD': moveRight=false; break;
-    case 'Space': handbrake=false; break;
-  }
+  switch(e.code){case 'KeyW': moveForward=false;break;case 'KeyS': moveBackward=false;break;
+  case 'KeyA': moveLeft=false;break;case 'KeyD': moveRight=false;break;case 'Space': handbrake=false;break;}
 });
 
 // =======================
-// Start Game Function
+// Start Game
 // =======================
 function startGame(){
-  if(isGameStarted) return;
-  isGameStarted=true;
   document.getElementById('loginScreen').style.display='none';
   animate();
 }
@@ -203,35 +189,41 @@ function startGame(){
 // =======================
 function animate(){
   requestAnimationFrame(animate);
-  if(!isGameStarted) return;
 
-  // Movement
+  // Player movement
   let accel=0;
-  if(moveForward) accel+=1; if(moveBackward) accel-=0.6;
-  velocity.z+=accel*0.12; velocity.z*=(handbrake?0.82:0.96);
-  const maxSpeed=2.2; velocity.z=Math.max(-maxSpeed*0.7,Math.min(velocity.z,maxSpeed));
+  if(moveForward) accel+=0.1*upgrades.speed; if(moveBackward) accel-=0.06;
+  velocity.z+=accel; velocity.z*=(handbrake?0.85:0.95);
+  const maxSpeed=2.2*upgrades.speed; velocity.z=Math.max(-maxSpeed*0.7,Math.min(velocity.z,maxSpeed));
 
   let steer=0; if(moveLeft) steer-=1; if(moveRight) steer+=1;
-  const steerSpeed=0.06*(Math.min(1,Math.abs(velocity.z)/1.5)+0.3);
-  carGroup.rotation.y+=steer*steerSpeed;
+  carGroup.rotation.y+=steer*0.05*upgrades.handling;
 
-  // Move
   carGroup.position.x+=Math.sin(carGroup.rotation.y)*velocity.z;
   carGroup.position.z+=Math.cos(carGroup.rotation.y)*velocity.z;
 
   // Rotate wheels
   const wheelSpeed=velocity.z*4; playerWheels.forEach(w=>{w.rotation.x+=wheelSpeed;});
 
+  // Loot collection
+  for(let i=coins.length-1;i>=0;i--){
+    const coin=coins[i];
+    if(coin.position.distanceTo(carGroup.position)<2){
+      money+=10; scene.remove(coin); coins.splice(i,1);
+    }
+  }
+
   // HUD
   document.getElementById('speed').textContent=Math.floor(Math.abs(velocity.z)*45);
   document.getElementById('points').textContent=Math.floor(driftPoints);
   document.getElementById('money').textContent=Math.floor(money);
+  document.getElementById('mission').textContent=mission.active?"Drive to checkpoint":"None";
 
   // Camera
-  const camOffset=new THREE.Vector3(0,10+Math.abs(velocity.z)*0.8,20+Math.abs(velocity.z)*1.2);
+  const camOffset=new THREE.Vector3(0,10,20);
   camOffset.applyQuaternion(carGroup.quaternion); camOffset.add(carGroup.position);
-  camera.position.lerp(camOffset,0.12);
-  camera.lookAt(carGroup.position.clone().add(new THREE.Vector3(0,2,5).applyQuaternion(carGroup.quaternion)));
+  camera.position.lerp(camOffset,0.1);
+  camera.lookAt(carGroup.position.clone().add(new THREE.Vector3(0,2,5)));
 
   renderer.render(scene,camera);
 }
@@ -239,7 +231,8 @@ function animate(){
 // Resize
 window.addEventListener('resize',()=>{
   camera.aspect=window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight);
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
 });
 </script>
 </body>
