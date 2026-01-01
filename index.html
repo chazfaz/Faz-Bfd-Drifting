@@ -1,286 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Faz GTA-Style Drift Open World</title>
-<script src="https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.min.js"></script>
-<style>
-body { margin: 0; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
-#hud { 
-    position: absolute; top: 20px; left: 20px; color: white; 
-    background: rgba(0,0,0,0.7); padding: 20px; border-radius: 15px; z-index: 10; 
-    font-size: 18px; box-shadow: 0 0 20px rgba(255,68,68,0.5);
-}
-#missionHUD { 
-    position: absolute; top: 120px; left: 20px; color: #fff; 
-    background: rgba(0,0,0,0.6); padding: 10px; border-radius: 10px; font-size: 16px; z-index: 10;
-}
-#instructions { 
-    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-    background: rgba(0,0,0,0.8); padding: 20px; border-radius: 15px; color: #fff; 
-    text-align: center; z-index: 10; max-width: 90%; font-size: 16px;
-}
-canvas { display: block; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Faz Drifting BFD - 3D Open World with Traffic</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+        #hud { 
+            position: absolute; top: 20px; left: 20px; color: white; 
+            background: rgba(0,0,0,0.7); padding: 20px; border-radius: 15px; z-index: 10; 
+            font-size: 18px; box-shadow: 0 0 20px rgba(255,68,68,0.5);
+        }
+        #startScreen {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; color: white; font-size: 32px; z-index: 20;
+        }
+        #girlImage {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 20;
+        }
+        #instructions { 
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
+            background: rgba(0,0,0,0.8); padding: 20px; border-radius: 15px; color: #fff; 
+            text-align: center; z-index: 10; max-width: 90%; font-size: 16px;
+        }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-<div id="hud">
-    Speed: <span id="speed">0</span> km/h | 
-    Drift Points: <span id="points">0</span> | 
-    Money: $<span id="money">0</span> | 
-    Wanted Level: <span id="wanted">0</span>
-</div>
-<div id="missionHUD">Mission: None</div>
-<div id="instructions">
-    WASD = Accelerate/Brake/Steer | SPACE = Handbrake Drift<br>
-    Explore the city, complete missions, avoid police!
-</div>
 
-<script>
-// =======================
-// SCENE & RENDERER
-// =======================
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.FogExp2(0x87ceeb, 0.00025);
+    <!-- Start Screen -->
+    <div id="startScreen">
+        <div id="gameTitle">FAZ DRIFTING BFD</div>
+        <div>Tap or press Space to start</div>
+    </div>
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.8;
-document.body.appendChild(renderer.domElement);
+    <!-- Girl Image (for the start screen) -->
+    <img id="girlImage" src="https://example.com/girl-bikini.png" alt="Girl in Bikini" width="150">
 
-// LIGHTING
-const ambient = new THREE.AmbientLight(0x404040, 0.6);
-scene.add(ambient);
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-dirLight.position.set(200, 300, 100);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 4096;
-dirLight.shadow.mapSize.height = 4096;
-dirLight.shadow.camera.near = 0.5;
-dirLight.shadow.camera.far = 2000;
-dirLight.shadow.camera.left = -1000;
-dirLight.shadow.camera.right = 1000;
-dirLight.shadow.camera.top = 1000;
-dirLight.shadow.camera.bottom = -1000;
-scene.add(dirLight);
+    <div id="hud">
+        Speed: <span id="speed">0</span> km/h | 
+        Drift Points: <span id="points">0</span> | 
+        Money: $<span id="money">0</span> | 
+        Wanted Level: <span id="wanted">0</span>
+    </div>
+    <div id="instructions">
+        WASD = Accelerate/Brake/Steer | SPACE = Handbrake Drift<br>
+        Explore the city, complete missions, avoid police!
+    </div>
 
-// =======================
-// GROUND & ROADS
-// =======================
-const groundGeo = new THREE.PlaneGeometry(4000, 4000);
-const groundMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
-const ground = new THREE.Mesh(groundGeo, groundMat);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
+    <script>
+        // =======================
+        // Variables for the Game
+        // =======================
+        let isGameStarted = false;
+        let money = 0;
+        let driftPoints = 0;
+        let wantedLevel = 0;
+        let carSpeed = 2.2;
+        let upgradeLevel = 0; // Tracks car upgrades
 
-// Grid lines
-const gridSize = 200;
-const lineMatWhite = new THREE.MeshLambertMaterial({ color: 0xffffff });
-const lineMatYellow = new THREE.MeshLambertMaterial({ color: 0xffff00 });
-for (let i = -2000; i <= 2000; i += gridSize) {
-    const hLine = new THREE.Mesh(new THREE.BoxGeometry(4000, 0.3, 8), lineMatWhite);
-    hLine.position.set(0, 0.15, i); hLine.receiveShadow = true; scene.add(hLine);
-    const vLine = new THREE.Mesh(new THREE.BoxGeometry(4000, 0.3, 8), lineMatYellow);
-    vLine.rotation.y = Math.PI / 2; vLine.position.set(i, 0.15, 0); vLine.receiveShadow = true; scene.add(vLine);
-}
+        // =======================
+        // Scene & Renderer Setup
+        // =======================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.00025);
 
-// =======================
-// BUILDINGS
-// =======================
-const roadClearance = 130;
-const numBlocksX = 20;
-const numBlocksZ = 20;
-for (let ix = 0; ix < numBlocksX; ix++) {
-    for (let iz = 0; iz < numBlocksZ; iz++) {
-        const bx = (ix - numBlocksX / 2) * 220 + (Math.random() - 0.5) * 60;
-        const bz = (iz - numBlocksZ / 2) * 220 + (Math.random() - 0.5) * 60;
-        const distRoadX = Math.min(Math.abs(bx % gridSize), gridSize - Math.abs(bx % gridSize));
-        const distRoadZ = Math.min(Math.abs(bz % gridSize), gridSize - Math.abs(bz % gridSize));
-        if (distRoadX < roadClearance || distRoadZ < roadClearance) continue;
-        const width = 50 + Math.random() * 60;
-        const depth = 50 + Math.random() * 60;
-        const height = 40 + Math.random() * 140;
-        const buildingGeo = new THREE.BoxGeometry(width, height, depth);
-        const buildingMat = new THREE.MeshLambertMaterial({ color: new THREE.Color().setHSL(0.08 + Math.random() * 0.12, 0.3 + Math.random() * 0.5, 0.2 + Math.random() * 0.3) });
-        const building = new THREE.Mesh(buildingGeo, buildingMat);
-        building.position.set(bx, height / 2, bz);
-        building.castShadow = true;
-        building.receiveShadow = true;
-        scene.add(building);
-    }
-}
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.8;
+        document.body.appendChild(renderer.domElement);
 
-// =======================
-// PLAYER CAR
-// =======================
-const carGroup = new THREE.Group();
-const bodyGeo = new THREE.BoxGeometry(2.2, 1.1, 4.4);
-const bodyMat = new THREE.MeshLambertMaterial({ color: 0xff3333 });
-const body = new THREE.Mesh(bodyGeo, bodyMat); body.castShadow = true; carGroup.add(body);
-const winMat = new THREE.MeshLambertMaterial({ color: 0x223366, transparent: true, opacity: 0.6 });
-const frontWin = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.9, 0.2), winMat); frontWin.position.set(0,0.45,1.9); carGroup.add(frontWin);
-const rearWin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.7, 0.2), winMat); rearWin.position.set(0,0.35,-1.7); carGroup.add(rearWin);
+        // Lighting
+        const ambient = new THREE.AmbientLight(0x404040, 0.6);
+        scene.add(ambient);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(200, 300, 100);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 4096;
+        dirLight.shadow.mapSize.height = 4096;
+        scene.add(dirLight);
 
-// Wheels
-const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12);
-const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
-const playerWheels = [];
-for (let i=0;i<4;i++){ const wheel = new THREE.Mesh(wheelGeo,wheelMat); wheel.rotation.z=Math.PI/2; wheel.castShadow=true; playerWheels.push(wheel); carGroup.add(wheel);}
-playerWheels[0].position.set(-1.2,-0.55,1.6); playerWheels[1].position.set(1.2,-0.55,1.6);
-playerWheels[2].position.set(-1.2,-0.55,-1.6); playerWheels[3].position.set(1.2,-0.55,-1.6);
-scene.add(carGroup); carGroup.position.set(0,0.5,0);
+        // Ground (asphalt)
+        const groundGeo = new THREE.PlaneGeometry(4000, 4000);
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
 
-// =======================
-// NPC / TRAFFIC
-// =======================
-const npcs = [];
-function createNPC(x,z,rotY,color){
-    const npcGroup = carGroup.clone(); npcGroup.position.set(x,0.5,z); npcGroup.rotation.y=rotY;
-    npcGroup.children[0].material.color.setHex(color);
-    npcGroup.children[1].material.color.setHex(color*0.8);
-    npcGroup.children[2].material.color.setHex(color*0.8);
-    npcGroup.scale.setScalar(0.85+Math.random()*0.15);
-    npcGroup.traverse(c=>{if(c.isMesh){c.castShadow=true;c.receiveShadow=true;}});
-    npcGroup.userData={velocityZ:0,targetSpeed:0.7+Math.random()*0.6,maxSpeed:1.3+Math.random()*0.5,police:false};
-    scene.add(npcGroup);
-    return npcGroup;
-}
-const npcColors=[0x4444ff,0xaa44ff,0x44ff44,0xffff44,0xff8844,0x44aaff,0xff44aa,0xaaff44];
-for(let i=0;i<120;i++){
-    let x,z,rotY;if(Math.random()<0.5){const roadZ=Math.round((Math.random()*3400-1700)/gridSize)*gridSize; z=roadZ+(Math.random()-0.5)*50; x=Math.random()*3400-1700; rotY=Math.random()<0.5?0:Math.PI;} 
-    else{const roadX=Math.round((Math.random()*3400-1700)/gridSize)*gridSize; x=roadX+(Math.random()-0.5)*50; z=Math.random()*3400-1700; rotY=Math.random()<0.5?Math.PI/2:-Math.PI/2;}
-    const color=npcColors[Math.floor(Math.random()*npcColors.length)]; npcs.push(createNPC(x,z,rotY,color));
-}
+        // =======================
+        // Player Car Setup
+        // =======================
+        const carGroup = new THREE.Group();
+        const bodyGeo = new THREE.BoxGeometry(2.2, 1.1, 4.4);
+        const bodyMat = new THREE.MeshLambertMaterial({ color: 0xff3333 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.castShadow = true;
+        carGroup.add(body);
 
-// =======================
-// MISSIONS & COLLECTIBLES
-// =======================
-const missions = []; let currentMission = null;
-const collectibles = [];
-let money = 0; let driftPoints = 0; let wantedLevel = 0;
+        // Windshield
+        const winMat = new THREE.MeshLambertMaterial({ color: 0x223366, transparent: true, opacity: 0.6 });
+        const frontWin = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.9, 0.2), winMat);
+        frontWin.position.set(0, 0.45, 1.9);
+        carGroup.add(frontWin);
+        const rearWin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.7, 0.2), winMat);
+        rearWin.position.set(0, 0.35, -1.7);
+        carGroup.add(rearWin);
 
-// Mission & collectible creation
-function createMission(x,z,desc){ 
-    const geo = new THREE.SphereGeometry(2,12,8);
-    const mat = new THREE.MeshBasicMaterial({color:0xffaa00});
-    const marker = new THREE.Mesh(geo,mat); marker.position.set(x,1,z); marker.userData={description:desc,active:true};
-    scene.add(marker); missions.push(marker);
-}
-function createCollectible(x,z,amount){
-    const geo = new THREE.BoxGeometry(1,1,1);
-    const mat = new THREE.MeshBasicMaterial({color:0x00ff00});
-    const item = new THREE.Mesh(geo,mat); item.position.set(x,0.5,z); item.userData={amount,collected:false};
-    scene.add(item); collectibles.push(item);
-}
-createMission(300,400,"Reach the Orange Marker");
-createCollectible(-200,150,500);
-
-// Check missions & collectibles
-function checkMissions(){
-    if(!currentMission) currentMission=missions.find(m=>m.userData.active);
-    if(currentMission){
-        const dist=carGroup.position.distanceTo(currentMission.position);
-        if(dist<5){ currentMission.userData.active=false; scene.remove(currentMission); money+=1000; currentMission=null; alert("Mission Complete! $1000 earned"); }
-    }
-}
-function checkCollectibles(){
-    collectibles.forEach(item=>{
-        if(!item.userData.collected && carGroup.position.distanceTo(item.position)<3){ 
-            driftPoints+=item.userData.amount; money+=item.userData.amount; item.userData.collected=true; scene.remove(item); 
+        // Wheels
+        const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12);
+        const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+        const playerWheels = [];
+        for (let i = 0; i < 4; i++) {
+            const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+            wheel.rotation.z = Math.PI / 2;
+            wheel.castShadow = true;
+            playerWheels.push(wheel);
+            carGroup.add(wheel);
         }
-    });
-}
+        playerWheels[0].position.set(-1.2, -0.55, 1.6);  // FL
+        playerWheels[1].position.set(1.2, -0.55, 1.6);   // FR
+        playerWheels[2].position.set(-1.2, -0.55, -1.6); // RL
+        playerWheels[3].position.set(1.2, -0.55, -1.6);  // RR
 
-// =======================
-// CONTROLS & PHYSICS
-// =======================
-const velocity = new THREE.Vector3();
-let moveForward=false,moveBackward=false,moveLeft=false,moveRight=false,handbrake=false;
-document.addEventListener('keydown',e=>{switch(e.code){case'KeyW':moveForward=true;break;case'KeyS':moveBackward=true;break;case'KeyA':moveLeft=true;break;case'KeyD':moveRight=true;break;case'Space':handbrake=true;e.preventDefault();break}});
-document.addEventListener('keyup',e=>{switch(e.code){case'KeyW':moveForward=false;break;case'KeyS':moveBackward=false;break;case'KeyA':moveLeft=false;break;case'KeyD':moveRight=false;break;case'Space':handbrake=false;break}});
+        scene.add(carGroup);
+        carGroup.position.set(0, 0.5, 0);
 
-// =======================
-// ANIMATION LOOP
-// =======================
-const edgeLimit=1600; const driftParticles=[];
-function animate(){
-    requestAnimationFrame(animate);
-
-    // --- Player input ---
-    let accelInput=0;if(moveForward) accelInput+=1;if(moveBackward) accelInput-=0.6;
-    velocity.z+=accelInput*0.12; const drag = handbrake?0.82:0.96; velocity.z*=drag;
-    const maxSpeed=2.2; velocity.z=Math.max(-maxSpeed*0.7,Math.min(velocity.z,maxSpeed));
-    let steerInput=0;if(moveLeft) steerInput-=1;if(moveRight) steerInput+=1;
-    const steerSpeed=0.06*(Math.min(1,Math.abs(velocity.z)/1.5)+0.3); carGroup.rotation.y+=steerInput*steerSpeed;
-
-    if(handbrake && Math.abs(velocity.z)>0.4){
-        velocity.x+=Math.sin(-carGroup.rotation.y)*0.2; driftPoints+=Math.floor(Math.abs(velocity.x)*8+12);
-        if(driftParticles.length<250){for(let i=0;i<3;i++){ const pGeo=new THREE.SphereGeometry(0.4+Math.random()*0.6,8,6);
-        const pMat=new THREE.MeshBasicMaterial({color:0x666666+Math.random()*0x444444,transparent:true,opacity:0.8});
-        const particle=new THREE.Mesh(pGeo,pMat); particle.position.copy(carGroup.position); particle.position.y-=0.2;
-        particle.position.x+=(Math.random()-0.5)*1.5; particle.position.z+=(Math.random()-0.5)*1.5;
-        particle.velocity=new THREE.Vector3((Math.random()-0.5)*3-velocity.x*0.3,1+Math.random()*1.5,(Math.random()-0.5)*3-velocity.z*0.1);
-        scene.add(particle); driftParticles.push(particle);}}
-    }
-    velocity.x*=0.91;
-
-    // Move player
-    const forwardX=Math.sin(carGroup.rotation.y)*velocity.z;
-    const forwardZ=Math.cos(carGroup.rotation.y)*velocity.z;
-    carGroup.position.x+=forwardX+velocity.x*0.6;
-    carGroup.position.z+=forwardZ;
-
-    // Wheels
-    const wheelSpeed=velocity.z*4+velocity.x*0.5; playerWheels.forEach(w=>{w.rotation.x+=wheelSpeed;});
-
-    // --- NPC Updates ---
-    npcs.forEach(npc=>{
-        const ud=npc.userData;
-        ud.velocityZ+=(ud.targetSpeed-ud.velocityZ)*0.1; ud.velocityZ*=0.975;
-        ud.velocityZ=Math.max(-ud.maxSpeed/2,Math.min(ud.velocityZ,ud.maxSpeed));
-
-        // Police NPC chase
-        if(ud.police && wantedLevel>0){
-            const dir=new THREE.Vector3().subVectors(carGroup.position,npc.position).normalize();
-            npc.rotation.y=Math.atan2(dir.x,dir.z);
-            npc.position.add(dir.multiplyScalar(0.5));
-        } else {
-            // Random turns
-            const lookAhead=90;
-            const dirX=Math.sin(npc.rotation.y);
-            const dirZ=Math.cos(npc.rotation.y);
-            const aheadX=npc.position.x+dirX*lookAhead;
-            const aheadZ=npc.position.z+dirZ*lookAhead;
-            const gridX=Math.round(aheadX/gridSize)*gridSize;
-            const gridZ=Math.round(aheadZ/gridSize)*gridSize;
-            const distGridX=Math.abs(aheadX-gridX);
-            const distGridZ=Math.abs(aheadZ-gridZ);
-            if(distGridX<45||distGridZ<45){if(Math.random()<0.4){const turn=Math.random()<0.5?Math.PI/2:-Math.PI/2;npc.rotation.y+=turn;}}
-            npc.position.x+=dirX*ud.velocityZ; npc.position.z+=dirZ*ud.velocityZ;
+        // =======================
+        // Start Screen Logic
+        // =======================
+        function startGame() {
+            isGameStarted = true;
+            document.getElementById('startScreen').style.display = 'none';
         }
 
-        // Bounds check
-        if(Math.abs(npc.position.x)>edgeLimit||Math.abs(npc.position.z)>edgeLimit){
-            ud.velocityZ*=-0.5; npc.rotation.y+=Math.PI;
-        }
+        // Handle touch and space key press
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !isGameStarted) {
+                startGame();
+            }
+        });
 
-        // NPC wheels
-        const nWheelSpeed=ud.velocityZ*4; for(let j=2;j<6;j++){npc.children[j].rotation.x+=nWheelSpeed;}
-    });
+        window.addEventListener('click', () => {
+            if (!isGameStarted) {
+                startGame();
+            }
+        });
 
-    // --- Collisions ---
-    const playerPos=carGroup.position.clone();
-    npcs.forEach(npc=>{
-        const dist=playerPos.distanceTo(npc.position);
-        if(dist<3.5){
-            const overlap=3.5-dist; const pushDir=new THREE.Vector3().subVectors(playerPos,npc.position).normalize();
-            carGroup.position.add(pushDir.multiplyScalar(overlap*0.4));
-            npc.position.sub(pushDir.multiplyScalar(overlap*0.4));
-            velocity.z*=0.65; npc.userData.velocityZ*=
+        // =======================
+        // Player Control & Physics
+        // =======================
+        const velocity = new THREE.Vector3();
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, handbrake = false;
+        
+        document.addEventListener('keydown', (e) => {
+            switch (e.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyD': moveRight = true; break;
+                case 'Space': handbrake = true; e.preventDefault(); break;
+            }
+        });
+
+        document.addEventListener('keyup',
