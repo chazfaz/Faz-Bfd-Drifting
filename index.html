@@ -2,25 +2,147 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Faz Drifting BFD</title>
     <style>
-        body { margin: 0; background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; font-family: Arial, sans-serif; color: #fff; }
-        canvas { background: #333; border: 3px solid #444; box-shadow: 0 0 30px rgba(0,0,0,0.9); cursor: none; }
-        h1 { color: #ff4444; margin: 0 0 10px 0; text-shadow: 0 0 10px #ff0000; }
-        p { color: #ccc; margin: 0; text-align: center; max-width: 800px; }
+        body { 
+            margin: 0; 
+            padding: 0;
+            background: #111; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+            flex-direction: column; 
+            font-family: Arial, sans-serif; 
+            color: #fff;
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            overflow: hidden;
+        }
+        canvas { 
+            background: #333; 
+            border: 3px solid #444; 
+            box-shadow: 0 0 30px rgba(0,0,0,0.9); 
+            display: block;
+            max-width: 100vw;
+            max-height: 80vh;
+            width: auto;
+            height: auto;
+        }
+        h1 { 
+            color: #ff4444; 
+            margin: 10px 0; 
+            text-shadow: 0 0 10px #ff0000; 
+            font-size: 2.5em;
+            text-align: center;
+        }
+        .instructions { 
+            color: #ccc; 
+            margin: 5px 0 15px 0; 
+            text-align: center; 
+            max-width: 90%;
+            font-size: 1.1em;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .left-controls, .right-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            pointer-events: auto;
+        }
+        .btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(255,255,255,0.2);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            color: #fff;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            active: { transform: scale(0.9); }
+        }
+        .accel {
+            width: 90px;
+            height: 90px;
+            background: rgba(0,255,0,0.3);
+        }
+        .brake {
+            width: 90px;
+            height: 90px;
+            background: rgba(255,0,0,0.3);
+        }
+        @media (orientation: landscape) {
+            .controls { bottom: 10px; }
+            .btn { width: 60px; height: 60px; font-size: 30px; }
+            .accel, .brake { width: 75px; height: 75px; }
+        }
+        @media (max-width: 500px) {
+            h1 { font-size: 2em; }
+            .instructions { font-size: 1em; }
+        }
     </style>
 </head>
 <body>
     <h1>Faz Drifting BFD</h1>
-    <p>ARROW KEYS to drive | DRIFT by sharp turns at speed! | Missions: 1 or 2 | R=Reset | ESC/M=Menu</p>
+    <div class="instructions" id="instructions">
+        Tap screen controls on iOS • Keyboard arrows on desktop<br>
+        Missions: 1 or 2 • R=Reset • M=Menu
+    </div>
     <canvas id="canvas" width="800" height="600" tabindex="1"></canvas>
+
+    <div class="controls">
+        <div class="left-controls">
+            <div class="btn" id="left">←</div>
+            <div class="btn" id="right">→</div>
+        </div>
+        <div class="right-controls">
+            <div class="btn accel" id="up">↑</div>
+            <div class="btn brake" id="down">↓</div>
+        </div>
+    </div>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const instructions = document.getElementById('instructions');
 
-        canvas.focus();
+        // Responsive canvas
+        function resizeCanvas() {
+            const maxWidth = window.innerWidth * 0.95;
+            const maxHeight = window.innerHeight * 0.75;
+            const ratio = Math.min(maxWidth / 800, maxHeight / 600);
+            canvas.style.width = (800 * ratio) + 'px';
+            canvas.style.height = (600 * ratio) + 'px';
+        }
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+        resizeCanvas();
+
+        // Detect touch device
+        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        if (isTouch) {
+            document.querySelector('.controls').style.display = 'flex';
+            instructions.innerHTML = 'Use on-screen buttons • Missions: 1 or 2 • Tap canvas then R=Reset, M=Menu';
+        }
 
         // Car
         const car = {
@@ -40,55 +162,60 @@
         // Input
         const keys = {};
         const pressed = {};
+
+        // Keyboard
         window.addEventListener('keydown', e => {
-            if (!keys[e.key]) {
-                pressed[e.key] = true;
-            }
+            if (!keys[e.key]) pressed[e.key] = true;
             keys[e.key] = true;
             e.preventDefault();
         });
         window.addEventListener('keyup', e => {
             keys[e.key] = false;
-            pressed[e.key] = false;
             e.preventDefault();
         });
 
+        // Touch buttons
+        const buttons = {
+            ArrowLeft: document.getElementById('left'),
+            ArrowRight: document.getElementById('right'),
+            ArrowUp: document.getElementById('up'),
+            ArrowDown: document.getElementById('down')
+        };
+
+        Object.keys(buttons).forEach(k => {
+            const btn = buttons[k];
+            if (btn) {
+                btn.addEventListener('touchstart', e => { e.preventDefault(); keys[k] = true; pressed[k] = true; });
+                btn.addEventListener('touchend', e => { e.preventDefault(); keys[k] = false; });
+                btn.addEventListener('mousedown', e => { e.preventDefault(); keys[k] = true; pressed[k] = true; });
+                btn.addEventListener('mouseup', e => { e.preventDefault(); keys[k] = false; });
+                btn.addEventListener('mouseleave', () => keys[k] = false);
+            }
+        });
+
         // Game state
-        let gameState = 'menu'; // menu, playing, success
+        let gameState = 'menu';
         let currentMission = 0;
         let startTime = 0;
         let particles = [];
 
         const missions = [
-            {
-                name: 'Drift King',
-                type: 'drift',
-                target: 3000,
-                current: 0
-            },
-            {
-                name: 'Checkpoint Dash',
-                type: 'checkpoints',
-                target: 6,
-                current: 0,
-                checkpoints: [],
-                currentCp: 0
-            }
+            { name: 'Drift King', type: 'drift', target: 3000, current: 0 },
+            { name: 'Checkpoint Dash', type: 'checkpoints', target: 6, current: 0, checkpoints: [], currentCp: 0 }
         ];
 
         function resetMission() {
             car.x = 400;
             car.y = 300;
             car.angle = 0;
-            car.velocityX = 0;
-            car.velocityY = 0;
-            car.velMag = 0;
+            car.velocityX = car.velocityY = car.velMag = 0;
             const m = missions[currentMission];
             m.current = 0;
-            particles.length = 0;
+            particles = [];
             startTime = Date.now();
             if (m.type === 'checkpoints') {
                 m.checkpoints = [];
+                m.currentCp = 0;
                 for (let i = 0; i < 6; i++) {
                     const ang = (i / 6) * Math.PI * 2 + Math.PI / 4;
                     m.checkpoints.push({
@@ -98,54 +225,27 @@
                         hit: false
                     });
                 }
-                m.currentCp = 0;
             }
         }
 
         function update() {
-            // Update particles
-            particles.forEach(p => {
-                p.vx *= 0.96;
-                p.vy *= 0.96;
-                p.x += p.vx;
-                p.y += p.vy;
+            particles = particles.filter(p => {
+                p.vx *= 0.96; p.vy *= 0.96;
+                p.x += p.vx; p.y += p.vy;
                 p.life--;
+                return p.life > 0;
             });
-            particles = particles.filter(p => p.life > 0);
 
-            // Menu input
             if (gameState === 'menu') {
-                if (pressed['1']) {
-                    pressed['1'] = false;
-                    currentMission = 0;
-                    gameState = 'playing';
-                    resetMission();
-                }
-                if (pressed['2']) {
-                    pressed['2'] = false;
-                    currentMission = 1;
-                    gameState = 'playing';
-                    resetMission();
-                }
+                if (pressed['1']) { pressed['1'] = false; currentMission = 0; gameState = 'playing'; resetMission(); }
+                if (pressed['2']) { pressed['2'] = false; currentMission = 1; gameState = 'playing'; resetMission(); }
                 return;
             }
-
-            // Success input
             if (gameState === 'success') {
-                if (pressed['r'] || pressed['R']) {
-                    pressed['r'] = pressed['R'] = false;
-                    resetMission();
-                    gameState = 'playing';
-                }
-                if (pressed['Escape'] || pressed['m'] || pressed['M']) {
-                    pressed['Escape'] = pressed['m'] = pressed['M'] = false;
-                    gameState = 'menu';
-                }
+                if (pressed['r'] || pressed['R']) { pressed['r'] = pressed['R'] = false; resetMission(); gameState = 'playing'; }
+                if (pressed['Escape'] || pressed['m'] || pressed['M']) { pressed['Escape'] = pressed['m'] = pressed['M'] = false; gameState = 'menu'; }
                 return;
             }
-
-            // Playing update
-            if (gameState !== 'playing') return;
 
             // Controls
             if (keys['ArrowUp']) {
@@ -156,11 +256,9 @@
                 car.velocityY -= Math.cos(car.angle + Math.PI) * car.accelForce * 0.7;
             }
 
-            // Drag
             car.velocityX *= car.drag;
             car.velocityY *= car.drag;
 
-            // Steering
             car.velMag = Math.hypot(car.velocityX, car.velocityY);
             if (car.velMag > 0.8) {
                 const turnRate = car.turnSpeed * Math.min(car.velMag / 4, 1.8);
@@ -168,7 +266,6 @@
                 if (keys['ArrowRight']) car.angle += turnRate;
             }
 
-            // Position update
             car.x += car.velocityX;
             car.y += car.velocityY;
 
@@ -178,7 +275,7 @@
             if (car.y < 30) { car.y = 30; car.velocityY *= -0.5; }
             if (car.y > 570) { car.y = 570; car.velocityY *= -0.5; }
 
-            // Mission logic
+            // Mission logic (same as before)
             const m = missions[currentMission];
             if (m.type === 'drift') {
                 if (car.velMag > 2.5) {
@@ -188,69 +285,50 @@
                     if (driftAngle > 0.3) {
                         const scoreAdd = (driftAngle ** 1.5) * car.velMag * 0.18;
                         m.current += scoreAdd;
-                        // Emit smoke
                         const smokeCount = Math.floor(driftAngle * 2) + 1;
                         for (let s = 0; s < smokeCount; s++) {
                             const smokeAng = velAngle + Math.PI + (Math.random() - 0.5) * 0.6;
-                            const px = car.x + Math.sin(smokeAng) * (18 + Math.random() * 12);
-                            const py = car.y - Math.cos(smokeAng) * (18 + Math.random() * 12);
                             particles.push({
-                                x: px,
-                                y: py,
+                                x: car.x + Math.sin(smokeAng) * (18 + Math.random() * 12),
+                                y: car.y - Math.cos(smokeAng) * (18 + Math.random() * 12),
                                 vx: Math.sin(smokeAng) * 0.4 + (Math.random() - 0.5) * 1.8,
                                 vy: -Math.cos(smokeAng) * 0.4 + (Math.random() - 0.5) * 1.8,
                                 life: 30 + Math.random() * 30,
-                                maxLife: 30 + Math.random() * 30,
+                                maxLife: 60,
                                 size: 3 + Math.random() * 4
                             });
                         }
                     }
                 }
-                if (m.current >= m.target) {
-                    gameState = 'success';
-                }
+                if (m.current >= m.target) gameState = 'success';
             } else if (m.type === 'checkpoints') {
                 const cp = m.checkpoints[m.currentCp];
-                if (Math.hypot(car.x - cp.x, car.y - cp.y) < cp.r) {
+                if (cp && Math.hypot(car.x - cp.x, car.y - cp.y) < cp.r) {
                     m.current++;
                     m.currentCp++;
                     cp.hit = true;
-                    if (m.currentCp >= m.checkpoints.length) {
-                        gameState = 'success';
-                    }
+                    if (m.currentCp >= m.checkpoints.length) gameState = 'success';
                 }
             }
 
-            // Global keys
-            if (pressed['r'] || pressed['R']) {
-                pressed['r'] = pressed['R'] = false;
-                resetMission();
-            }
-            if (pressed['Escape'] || pressed['m'] || pressed['M']) {
-                pressed['Escape'] = pressed['m'] = pressed['M'] = false;
-                gameState = 'menu';
-            }
+            if (pressed['r'] || pressed['R']) { pressed['r'] = pressed['R'] = false; resetMission(); }
+            if (pressed['Escape'] || pressed['m'] || pressed['M']) { pressed['Escape'] = pressed['m'] = pressed['M'] = false; gameState = 'menu'; }
         }
 
         function draw() {
-            // Road
             ctx.fillStyle = '#2a2a2a';
             ctx.fillRect(0, 0, 800, 600);
 
-            // Road lines (animated)
+            // Animated road lines
             ctx.strokeStyle = '#ccc';
             ctx.lineWidth = 6;
-            ctx.lineCap = 'round';
             ctx.setLineDash([30, 30]);
             ctx.lineDashOffset = -(Date.now() / 80) % 60;
             ctx.beginPath();
-            ctx.moveTo(400, 0);
-            ctx.lineTo(400, 600);
-            ctx.moveTo(0, 300);
-            ctx.lineTo(800, 300);
+            ctx.moveTo(400, 0); ctx.lineTo(400, 600);
+            ctx.moveTo(0, 300); ctx.lineTo(800, 300);
             ctx.stroke();
             ctx.setLineDash([]);
-            ctx.lineDashOffset = 0;
 
             // Checkpoints
             if (gameState === 'playing' && missions[currentMission].type === 'checkpoints') {
@@ -261,6 +339,7 @@
                         ctx.fillStyle = `rgba(0, 255, 0, ${0.8 + 0.2 * Math.sin(Date.now() / 150)})`;
                         ctx.strokeStyle = '#fff';
                         ctx.lineWidth = 4;
+                        ctx.stroke();
                     } else if (cp.hit) {
                         ctx.fillStyle = '#555';
                     } else {
@@ -269,39 +348,34 @@
                     ctx.beginPath();
                     ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
                     ctx.fill();
-                    if (i === m.currentCp) {
-                        ctx.stroke();
-                    }
+                    if (i === m.currentCp) ctx.stroke();
                     ctx.restore();
                 });
             }
 
-            // Particles (smoke)
+            // Smoke particles
             particles.forEach(p => {
-                ctx.save();
                 const alpha = p.life / p.maxLife;
                 ctx.globalAlpha = alpha * alpha;
                 ctx.fillStyle = '#888';
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.restore();
             });
+            ctx.globalAlpha = 1;
 
-            // Car
+            // Car (same as before)
             ctx.save();
             ctx.translate(car.x, car.y);
             ctx.rotate(car.angle);
             ctx.fillStyle = '#ff4444';
             ctx.shadowColor = '#ff2222';
             ctx.shadowBlur = 15;
-            ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
+            ctx.fillRect(-car.width/2, -car.height/2, car.width, car.height);
             ctx.shadowBlur = 0;
-            // Details
             ctx.fillStyle = '#333';
-            ctx.fillRect(-11, -22, 22, 14); // front
-            ctx.fillRect(-11, 6, 22, 14); // rear
-            // Wheels
+            ctx.fillRect(-11, -22, 22, 14);
+            ctx.fillRect(-11, 6, 22, 14);
             ctx.fillStyle = '#111';
             ctx.fillRect(-13, -25, 7, 10);
             ctx.fillRect(6, -25, 7, 10);
@@ -309,28 +383,26 @@
             ctx.fillRect(6, 15, 7, 10);
             ctx.restore();
 
-            // UI
+            // UI overlays (menu, playing HUD, success) - unchanged from previous version
             if (gameState === 'menu') {
                 ctx.fillStyle = 'rgba(0,0,0,0.9)';
-                ctx.fillRect(120, 120, 560, 360);
+                ctx.fillRect(100, 100, 600, 400);
                 ctx.fillStyle = '#fff';
                 ctx.textAlign = 'center';
                 ctx.font = 'bold 42px Arial';
-                ctx.fillText('FAZ DRIFTING BFD', 400, 200);
+                ctx.fillText('FAZ DRIFTING BFD', 400, 180);
                 ctx.font = 'bold 26px Arial';
                 ctx.fillStyle = '#ff4444';
-                ctx.fillText('1. DRIFT KING', 400, 280);
-                ctx.fillText('(Accumulate 3000 Drift Points)', 400, 310);
+                ctx.fillText('1. DRIFT KING', 400, 260);
+                ctx.fillText('(3000 Drift Points)', 400, 290);
                 ctx.fillStyle = '#fff';
-                ctx.fillText('2. CHECKPOINT DASH', 400, 370);
-                ctx.fillText('(Hit 6 Checkpoints in Order)', 400, 400);
+                ctx.fillText('2. CHECKPOINT DASH', 400, 350);
+                ctx.fillText('(Hit 6 Checkpoints)', 400, 380);
                 ctx.font = '20px Arial';
                 ctx.fillStyle = '#ccc';
-                ctx.fillText('← → ↑ ↓ : Steer / Accel / Brake', 400, 460);
-                ctx.fillText('DRIFT: Counter-steer sharply at HIGH SPEED!', 400, 490);
+                ctx.fillText('Use buttons / arrows • Drift hard!', 400, 450);
             } else if (gameState === 'playing') {
                 const m = missions[currentMission];
-                // Mission HUD
                 ctx.fillStyle = 'rgba(0,0,0,0.85)';
                 ctx.fillRect(15, 15, 360, 85);
                 ctx.fillStyle = '#fff';
@@ -338,23 +410,18 @@
                 ctx.font = 'bold 22px Arial';
                 ctx.fillText(m.name, 25, 40);
                 ctx.font = '20px Arial';
-                const progText = m.type === 'drift' ? Math.floor(m.current).toLocaleString() : m.current;
-                ctx.fillText(`${progText} / ${m.target}`, 25, 65);
-                // Progress bar
+                ctx.fillText(`${m.type==='drift'?Math.floor(m.current).toLocaleString():m.current} / ${m.target}`, 25, 65);
                 ctx.fillStyle = '#555';
                 ctx.fillRect(25, 72, 340, 16);
-                const percent = Math.min(1, m.current / m.target);
                 ctx.fillStyle = '#00ff88';
-                ctx.fillRect(25, 72, 340 * percent, 16);
-                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                ctx.fillRect(25, 72, 340 * Math.min(1, m.current / m.target), 16);
+                const elapsed = Math.floor((Date.now() - startTime)/1000);
                 ctx.fillText(`Time: ${elapsed}s`, 25, 97);
-                // Speed
                 ctx.textAlign = 'right';
-                ctx.fillStyle = '#fff';
                 ctx.fillText(`Speed: ${Math.floor(car.velMag * 7)} km/h`, 785, 40);
             } else if (gameState === 'success') {
                 const m = missions[currentMission];
-                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const elapsed = Math.floor((Date.now() - startTime)/1000);
                 ctx.fillStyle = 'rgba(0,0,0,0.98)';
                 ctx.fillRect(0, 0, 800, 600);
                 ctx.fillStyle = '#00ff44';
@@ -364,18 +431,12 @@
                 ctx.font = 'bold 30px Arial';
                 ctx.fillStyle = '#fff';
                 ctx.fillText(m.name, 400, 300);
-                ctx.font = 'bold 26px Arial';
-                if (m.type === 'drift') {
-                    ctx.fillStyle = '#ffaa00';
-                    ctx.fillText(`${Math.floor(m.current).toLocaleString()} Drift Points`, 400, 360);
-                } else {
-                    ctx.fillStyle = '#00ff88';
-                    ctx.fillText(`Completed in ${elapsed}s`, 400, 360);
-                }
+                ctx.font = '26px Arial';
+                ctx.fillStyle = m.type==='drift' ? '#ffaa00' : '#00ff88';
+                ctx.fillText(m.type==='drift' ? `${Math.floor(m.current).toLocaleString()} Points` : `Time: ${elapsed}s`, 400, 360);
                 ctx.fillStyle = '#fff';
                 ctx.font = '22px Arial';
-                ctx.fillText('R: Retry Mission', 400, 430);
-                ctx.fillText('ESC or M: Main Menu', 400, 460);
+                ctx.fillText('R: Retry • M: Menu', 400, 440);
             }
         }
 
