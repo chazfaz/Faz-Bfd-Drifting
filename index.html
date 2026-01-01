@@ -3,97 +3,52 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Faz Drifting BFD - Missions</title>
+<title>Faz Drifting BFD - GTA Style Missions</title>
 <script src="https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.min.js"></script>
 <style>
 body{margin:0;overflow:hidden;background:#000;font-family:Arial,sans-serif;}
 canvas{display:block;}
 
-/* Start Screen */
-#loginScreen{
-  position:absolute;top:0;left:0;width:100%;height:100%;
-  background:#000 url('A_digital_illustration_in_GTA_V-style_features_a_s.png') center center / cover no-repeat;
-  display:flex;flex-direction:column;justify-content:center;align-items:center;
-  color:white;font-size:28px;text-shadow:0 0 15px black;z-index:20;text-align:center;
-}
-#loginScreen input{padding:10px;margin:5px;border-radius:10px;border:none;font-size:18px;}
-#loginScreen button{padding:10px 20px;margin:5px;border-radius:10px;border:none;background:#ff4444;color:white;font-size:18px;cursor:pointer;}
-
 /* HUD */
-#hud{position:absolute;top:20px;left:20px;display:flex;flex-direction:column;gap:8px;z-index:10;}
-.hud-panel{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:10px 15px;background:rgba(0,0,0,0.6);border-radius:12px;
-  box-shadow:0 0 15px rgba(0,0,0,0.7);color:white;font-size:16px;
-}
-.upgrade-buttons{display:flex;flex-direction:column;margin-top:5px;}
-.upgrade-buttons button{
-  padding:5px 10px;margin-top:3px;border-radius:8px;border:none;background:#44ff44;color:black;cursor:pointer;font-size:14px;
-}
+#hud{position:absolute;top:10px;left:10px;z-index:10;display:flex;flex-direction:column;gap:6px;}
+.hud-panel{background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:10px;color:white;font-size:16px;box-shadow:0 0 10px black;}
+.upgrade-buttons{display:flex;flex-direction:column;margin-top:3px;}
+.upgrade-buttons button{margin-top:2px;padding:4px 8px;border:none;border-radius:6px;background:#44ff44;color:black;cursor:pointer;font-size:14px;}
 </style>
 </head>
 <body>
 
-<div id="loginScreen">
-  <div id="loginTitle">FAZ DRIFTING BFD</div>
-  <input type="text" id="username" placeholder="Username"><br>
-  <input type="password" id="password" placeholder="Password"><br>
-  <button id="registerBtn">Register</button>
-  <button id="loginBtn">Login</button>
-  <div id="loginMsg" style="margin-top:10px;color:yellow;"></div>
-</div>
-
 <div id="hud">
-  <div class="hud-panel">Speed: <span id="speed">0</span> km/h</div>
-  <div class="hud-panel">Drift: <span id="points">0</span></div>
-  <div class="hud-panel">Money: $<span id="money">0</span></div>
-  <div class="hud-panel">Mission: <span id="mission">None</span></div>
-  <div class="hud-panel">Mission Timer: <span id="missionTimer">0</span>s</div>
-  <div class="hud-panel">Wanted: <span id="wantedStars">0</span></div>
-  <div class="hud-panel">Upgrades:
-    <div class="upgrade-buttons">
-      <button id="buySpeed">Speed (+$50)</button>
-      <button id="buyHandling">Handling (+$50)</button>
-      <button id="buyDrift">Drift (+$50)</button>
-    </div>
+<div class="hud-panel">Speed: <span id="speed">0</span> km/h</div>
+<div class="hud-panel">Drift Points: <span id="points">0</span></div>
+<div class="hud-panel">Money: $<span id="money">0</span></div>
+<div class="hud-panel">Mission: <span id="mission">None</span></div>
+<div class="hud-panel">Wanted: <span id="wanted">0</span></div>
+<div class="hud-panel">Upgrades:
+  <div class="upgrade-buttons">
+    <button id="buySpeed">Speed +$50</button>
+    <button id="buyHandling">Handling +$50</button>
+    <button id="buyDrift">Drift +$50</button>
   </div>
+</div>
 </div>
 
 <script>
-// ===================== Account System =====================
-let username="",driftPoints=0,money=0,upgrades={speed:1,handling:1,drift:1};
-let mission={active:false,pos:null,reward:0,type:"none",timer:0};
-function saveAccount(user){localStorage.setItem('fd_account_'+user,JSON.stringify({password:loadAccount(user).password,driftPoints,money,upgrades,mission}));}
-function loadAccount(user){const data=localStorage.getItem('fd_account_'+user);return data?JSON.parse(data):null;}
-function hash(str){let h=0;for(let i=0;i<str.length;i++){h=((h<<5)-h)+str.charCodeAt(i);h|=0;}return h;}
-document.getElementById('registerBtn').addEventListener('click',()=>{
-  const user=document.getElementById('username').value.trim();
-  const pass=document.getElementById('password').value;
-  if(!user||!pass){document.getElementById('loginMsg').innerText="Enter username & password";return;}
-  if(loadAccount(user)){document.getElementById('loginMsg').innerText="Username exists";return;}
-  localStorage.setItem('fd_account_'+user,JSON.stringify({password:hash(pass),driftPoints:0,money:0,upgrades:{speed:1,handling:1,drift:1},mission:{active:false,pos:null,reward:0,type:"none",timer:0}}));
-  document.getElementById('loginMsg').innerText="Registered! You can login now.";
-});
-document.getElementById('loginBtn').addEventListener('click',()=>{
-  const user=document.getElementById('username').value.trim();
-  const pass=document.getElementById('password').value;
-  const acc=loadAccount(user);
-  if(!acc){document.getElementById('loginMsg').innerText="Account not found";return;}
-  if(acc.password!==hash(pass)){document.getElementById('loginMsg').innerText="Wrong password";return;}
-  username=user; driftPoints=acc.driftPoints; money=acc.money; upgrades=acc.upgrades; mission=acc.mission;
-  startGame();
-});
-setInterval(()=>{if(username) saveAccount(username);},5000);
+// ===================== ACCOUNT SYSTEM =====================
+let username="",money=0,driftPoints=0,upgrades={speed:1,handling:1,drift:1};
+function saveAccount(){if(username)localStorage.setItem('fd_'+username,JSON.stringify({money,driftPoints,upgrades}));}
+function loadAccount(user){const d=localStorage.getItem('fd_'+user);return d?JSON.parse(d):null;}
+username="Player1"; // simple auto-login for demo
+const acc=loadAccount(username); if(acc){money=acc.money;driftPoints=acc.driftPoints;upgrades=acc.upgrades;}
 
-// ===================== Three.js Setup =====================
+// ===================== THREE.JS SETUP =====================
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x87ceeb);
 scene.fog=new THREE.FogExp2(0x87ceeb,0.00025);
 const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,5000);
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth,window.innerHeight);
-renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // Lights
@@ -101,14 +56,11 @@ scene.add(new THREE.AmbientLight(0xffffff,0.7));
 const dirLight=new THREE.DirectionalLight(0xffffff,1.5);
 dirLight.position.set(100,200,100);
 dirLight.castShadow=true;
-dirLight.shadow.mapSize.width=4096;
-dirLight.shadow.mapSize.height=4096;
 scene.add(dirLight);
 
 // Ground
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000),new THREE.MeshStandardMaterial({color:0x222222,roughness:0.9,metalness:0.1}));
-ground.rotation.x=-Math.PI/2; ground.receiveShadow=true;
-scene.add(ground);
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
 
 // Buildings
 const buildings=[];
@@ -116,20 +68,16 @@ for(let i=0;i<40;i++){
   const w=20+Math.random()*50,h=30+Math.random()*100,d=20+Math.random()*50;
   const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:new THREE.Color(Math.random(),Math.random(),Math.random()),roughness:0.7,metalness:0.2}));
   b.position.set((Math.random()-0.5)*800,h/2,(Math.random()-0.5)*800);
-  b.castShadow=true;b.receiveShadow=true;
-  scene.add(b); buildings.push(b);
+  b.castShadow=true;b.receiveShadow=true; scene.add(b); buildings.push(b);
 }
 
-// Player Car
+// Player car
 const carGroup=new THREE.Group();
 const body=new THREE.Mesh(new THREE.BoxGeometry(2.5,1.2,4.5),new THREE.MeshStandardMaterial({color:0xff3333,metalness:0.5,roughness:0.3}));
 body.castShadow=true; carGroup.add(body);
 const wheelGeo=new THREE.CylinderGeometry(0.45,0.45,0.35,12); const wheelMat=new THREE.MeshStandardMaterial({color:0x111111,metalness:0.7});
 const playerWheels=[];
-for(let i=0;i<4;i++){
-  const wheel=new THREE.Mesh(wheelGeo,wheelMat); wheel.rotation.z=Math.PI/2; wheel.castShadow=true;
-  playerWheels.push(wheel); carGroup.add(wheel);
-}
+for(let i=0;i<4;i++){const w=new THREE.Mesh(wheelGeo,wheelMat);w.rotation.z=Math.PI/2;w.castShadow=true;playerWheels.push(w);carGroup.add(w);}
 playerWheels[0].position.set(-1.2,-0.55,1.6); playerWheels[1].position.set(1.2,-0.55,1.6);
 playerWheels[2].position.set(-1.2,-0.55,-1.6); playerWheels[3].position.set(1.2,-0.55,-1.6);
 scene.add(carGroup); carGroup.position.set(0,0.5,0); carGroup.scale.set(1.5,1.5,1.5);
@@ -145,61 +93,52 @@ function spawnCoins(num=20){
 }
 spawnCoins();
 
-// NPC Traffic
+// NPCs
 const npcs=[]; const npcColors=[0x4444ff,0xaa44ff,0x44ff44,0xffff44,0xff8844,0x44aaff,0xff44aa,0xaaff44];
-function createNPC(x,z,rotY,color){
-  const npcGroup = carGroup.clone();
-  npcGroup.position.set(x,0.5,z); npcGroup.rotation.y = rotY; npcGroup.scale.setScalar(0.8+Math.random()*0.2);
-  npcGroup.traverse(child=>{if(child.isMesh){child.castShadow=true;child.receiveShadow=true;}});
-  npcGroup.userData = {velocityZ:0,targetSpeed:1+Math.random()*0.5,maxSpeed:1.5+Math.random()*0.5};
-  scene.add(npcGroup); return npcGroup;
-}
-for(let i=0;i<40;i++){
-  let x=(Math.random()-0.5)*400,z=(Math.random()-0.5)*400,rotY=Math.random()<0.5?0:Math.PI;
-  const color=npcColors[Math.floor(Math.random()*npcColors.length)]; npcs.push(createNPC(x,z,rotY,color));
-}
+function createNPC(x,z,rotY){const npc=carGroup.clone();npc.position.set(x,0.5,z);npc.rotation.y=rotY;npc.scale.setScalar(0.8+Math.random()*0.2);npc.userData={velocity:1+Math.random()*0.5};scene.add(npc);return npc;}
+for(let i=0;i<20;i++){let x=(Math.random()-0.5)*400,z=(Math.random()-0.5)*400,rotY=Math.random()<0.5?0:Math.PI;npcs.push(createNPC(x,z,rotY));}
 
-// ===================== INPUT =====================
+// ===================== CONTROLS =====================
 const velocity=new THREE.Vector3();
 let moveForward=false,moveBackward=false,moveLeft=false,moveRight=false,handbrake=false;
 document.addEventListener('keydown',e=>{switch(e.code){case 'KeyW':moveForward=true;break;case 'KeyS':moveBackward=true;break;case 'KeyA':moveLeft=true;break;case 'KeyD':moveRight=true;break;case 'Space':handbrake=true;break;}});
 document.addEventListener('keyup',e=>{switch(e.code){case 'KeyW':moveForward=false;break;case 'KeyS':moveBackward=false;break;case 'KeyA':moveLeft=false;break;case 'KeyD':moveRight=false;break;case 'Space':handbrake=false;break;}});
 
-// ===================== GAME =====================
-let wantedLevel=0;
-function increaseWanted(a){wantedLevel=Math.min(5,wantedLevel+a);}
-function decreaseWanted(a){wantedLevel=Math.max(0,wantedLevel-a);}
+// ===================== HUD UPGRADES =====================
 document.getElementById('buySpeed').addEventListener('click',()=>{if(money>=50){upgrades.speed+=0.2;money-=50;}});
 document.getElementById('buyHandling').addEventListener('click',()=>{if(money>=50){upgrades.handling+=0.2;money-=50;}});
 document.getElementById('buyDrift').addEventListener('click',()=>{if(money>=50){upgrades.drift+=0.2;money-=50;}});
 
-// ===================== ANIMATE =====================
-function startGame(){document.getElementById('loginScreen').style.display='none';animate();}
+// ===================== GAME LOOP =====================
 function animate(){
   requestAnimationFrame(animate);
 
   // Player movement
-  let accel=0;if(moveForward) accel+=0.1*upgrades.speed;if(moveBackward) accel-=0.06;
+  let accel=0;if(moveForward)accel+=0.1*upgrades.speed;if(moveBackward)accel-=0.06;
   velocity.z+=accel; velocity.z*=(handbrake?0.85:0.95);
   const maxSpeed=2.2*upgrades.speed; velocity.z=Math.max(-maxSpeed*0.7,Math.min(velocity.z,maxSpeed));
-  let steer=0;if(moveLeft) steer-=1;if(moveRight) steer+=1;
+  let steer=0;if(moveLeft)steer-=1;if(moveRight)steer+=1;
   carGroup.rotation.y+=steer*0.05*upgrades.handling;
   carGroup.position.x+=Math.sin(carGroup.rotation.y)*velocity.z;
   carGroup.position.z+=Math.cos(carGroup.rotation.y)*velocity.z;
   const wheelSpeed=velocity.z*4; playerWheels.forEach(w=>{w.rotation.x+=wheelSpeed;});
 
-  // HUD
-  document.getElementById('speed').textContent=Math.floor(Math.abs(velocity.z)*45);
-  document.getElementById('points').textContent=Math.floor(driftPoints);
-  document.getElementById('money').textContent=Math.floor(money);
-  document.getElementById('wantedStars').textContent=wantedLevel;
+  // Coin collection
+  coins.forEach((c,i)=>{if(c.position.distanceTo(carGroup.position)<2){scene.remove(c);coins.splice(i,1);money+=10;}});
+  if(coins.length<10)spawnCoins(5);
 
   // Camera
   const camOffset=new THREE.Vector3(0,14,20); camOffset.applyQuaternion(carGroup.quaternion); camOffset.add(carGroup.position);
   camera.position.lerp(camOffset,0.1); camera.lookAt(carGroup.position.clone().add(new THREE.Vector3(0,2,5)));
 
+  // HUD update
+  document.getElementById('speed').textContent=Math.floor(Math.abs(velocity.z)*45);
+  document.getElementById('points').textContent=Math.floor(driftPoints);
+  document.getElementById('money').textContent=Math.floor(money);
+
   renderer.render(scene,camera);
 }
+animate();
 window.addEventListener('resize',()=>{camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});
 </script>
 </body>
