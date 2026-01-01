@@ -17,8 +17,9 @@
             text-align: center; color: white; font-size: 32px; z-index: 20;
         }
         #girlImage {
-            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
             z-index: 20;
+            width: 150px;
         }
         #instructions { 
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
@@ -158,22 +159,4 @@
         // =======================
         // Player Control & Physics
         // =======================
-        const velocity = new THREE.Vector3();
-        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, handbrake = false;
-        
-        document.addEventListener('keydown', (e) => {
-            switch (e.code) {
-                case 'KeyW': moveForward = true; break;
-                case 'KeyS': moveBackward = true; break;
-                case 'KeyA': moveLeft = true; break;
-                case 'KeyD': moveRight = true; break;
-                case 'Space': handbrake = true; e.preventDefault(); break;
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            switch (e.code) {
-                case 'KeyW': moveForward = false; break;
-                case 'KeyS': moveBackward = false; break;
-                case 'KeyA': moveLeft = false; break;
-                case 'KeyD': moveRight
+        const velocity = new THREE.Vector
