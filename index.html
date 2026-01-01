@@ -138,7 +138,8 @@
         // =======================
         function startGame() {
             isGameStarted = true;
-            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('startScreen').style.display = 'none'; // Hide start screen
+            animate(); // Start the game loop
         }
 
         // Handle touch and space key press
@@ -170,4 +171,9 @@
             }
         });
 
-        document.addEventListener('keyup',
+        document.addEventListener('keyup', (e) => {
+            switch (e.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyD': moveRight
