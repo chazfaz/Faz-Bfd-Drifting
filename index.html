@@ -2,138 +2,67 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Faz Drifting BFD - Playable</title>
+<title>Faz Drifting BFD - Visible Test</title>
 <script src="https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.min.js"></script>
 <style>
-body{margin:0;overflow:hidden;background:#000;font-family:Arial,sans-serif;}
+body{margin:0;overflow:hidden;}
 canvas{display:block;}
-
-/* HUD */
-#hud{position:absolute;top:10px;left:10px;z-index:10;display:flex;flex-direction:column;gap:6px;}
-.hud-panel{background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:10px;color:white;font-size:16px;box-shadow:0 0 10px black;}
-.upgrade-buttons{display:flex;flex-direction:column;margin-top:3px;}
-.upgrade-buttons button{margin-top:2px;padding:4px 8px;border:none;border-radius:6px;background:#44ff44;color:black;cursor:pointer;font-size:14px;}
 </style>
 </head>
 <body>
-
-<div id="hud">
-<div class="hud-panel">Speed: <span id="speed">0</span> km/h</div>
-<div class="hud-panel">Drift Points: <span id="points">0</span></div>
-<div class="hud-panel">Money: $<span id="money">0</span></div>
-<div class="hud-panel">Upgrades:
-  <div class="upgrade-buttons">
-    <button id="buySpeed">Speed +$50</button>
-    <button id="buyHandling">Handling +$50</button>
-    <button id="buyDrift">Drift +$50</button>
-  </div>
-</div>
-</div>
-
 <script>
-// ===================== GAME VARIABLES =====================
-let money=0,driftPoints=0,upgrades={speed:1,handling:1,drift:1};
+// --- Scene & Camera ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
 
-// ===================== THREE.JS SETUP =====================
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x87ceeb);
-scene.fog=new THREE.FogExp2(0x87ceeb,0.00025);
-const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,5000);
-const renderer=new THREE.WebGLRenderer({antialias:true});
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 5000);
+camera.position.set(0,15,30);
+camera.lookAt(0,0,0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth,window.innerHeight);
-renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-// Lights
-scene.add(new THREE.AmbientLight(0xffffff,0.7));
-const dirLight=new THREE.DirectionalLight(0xffffff,1.5);
-dirLight.position.set(100,200,100);
-dirLight.castShadow=true;
+// --- Lights ---
+const ambient = new THREE.AmbientLight(0xffffff,1.0); // strong ambient
+scene.add(ambient);
+
+const dirLight = new THREE.DirectionalLight(0xffffff,1.2);
+dirLight.position.set(50,100,50);
 scene.add(dirLight);
 
-// Ground
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000),new THREE.MeshStandardMaterial({color:0x222222,roughness:0.9,metalness:0.1}));
-ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+// --- Ground ---
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshLambertMaterial({color:0x222222}));
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
 
-// Buildings
-const buildings=[];
-for(let i=0;i<40;i++){
-  const w=20+Math.random()*50,h=30+Math.random()*100,d=20+Math.random()*50;
-  const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:new THREE.Color(Math.random(),Math.random(),Math.random()),roughness:0.7,metalness:0.2}));
-  b.position.set((Math.random()-0.5)*800,h/2,(Math.random()-0.5)*800);
-  b.castShadow=true;b.receiveShadow=true; scene.add(b); buildings.push(b);
+// --- Car ---
+const car = new THREE.Mesh(new THREE.BoxGeometry(2,1,4), new THREE.MeshLambertMaterial({color:0xff0000}));
+car.position.y = 0.5;
+scene.add(car);
+
+// --- Some buildings ---
+for(let i=0;i<20;i++){
+    const b = new THREE.Mesh(new THREE.BoxGeometry(3+Math.random()*5,5+Math.random()*10,3+Math.random()*5), 
+        new THREE.MeshLambertMaterial({color: Math.random()*0xffffff}));
+    b.position.set((Math.random()-0.5)*80, b.geometry.parameters.height/2, (Math.random()-0.5)*80);
+    scene.add(b);
 }
 
-// Player car
-const carGroup=new THREE.Group();
-const body=new THREE.Mesh(new THREE.BoxGeometry(2.5,1.2,4.5),new THREE.MeshStandardMaterial({color:0xff3333,metalness:0.5,roughness:0.3}));
-body.castShadow=true; carGroup.add(body);
-const wheelGeo=new THREE.CylinderGeometry(0.45,0.45,0.35,12); const wheelMat=new THREE.MeshStandardMaterial({color:0x111111,metalness:0.7});
-const playerWheels=[];
-for(let i=0;i<4;i++){const w=new THREE.Mesh(wheelGeo,wheelMat);w.rotation.z=Math.PI/2;w.castShadow=true;playerWheels.push(w);carGroup.add(w);}
-playerWheels[0].position.set(-1.2,-0.55,1.6); playerWheels[1].position.set(1.2,-0.55,1.6);
-playerWheels[2].position.set(-1.2,-0.55,-1.6); playerWheels[3].position.set(1.2,-0.55,-1.6);
-scene.add(carGroup); carGroup.position.set(0,0.5,0); carGroup.scale.set(1.5,1.5,1.5);
-
-// Coins
-let coins=[];
-function spawnCoins(num=20){
-  for(let i=0;i<num;i++){
-    const c=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),new THREE.MeshStandardMaterial({color:0xffcc00,metalness:0.6,roughness:0.2}));
-    c.position.set((Math.random()-0.5)*400,0.5,(Math.random()-0.5)*400);
-    scene.add(c); coins.push(c);
-  }
-}
-spawnCoins();
-
-// NPCs
-const npcs=[]; const npcColors=[0x4444ff,0xaa44ff,0x44ff44,0xffff44,0xff8844,0x44aaff,0xff44aa,0xaaff44];
-function createNPC(x,z,rotY){const npc=carGroup.clone();npc.position.set(x,0.5,z);npc.rotation.y=rotY;npc.scale.setScalar(0.8+Math.random()*0.2);npc.userData={velocity:1+Math.random()*0.5};scene.add(npc);return npc;}
-for(let i=0;i<20;i++){let x=(Math.random()-0.5)*400,z=(Math.random()-0.5)*400,rotY=Math.random()<0.5?0:Math.PI;npcs.push(createNPC(x,z,rotY));}
-
-// ===================== CONTROLS =====================
-const velocity=new THREE.Vector3();
-let moveForward=false,moveBackward=false,moveLeft=false,moveRight=false,handbrake=false;
-document.addEventListener('keydown',e=>{switch(e.code){case 'KeyW':moveForward=true;break;case 'KeyS':moveBackward=true;break;case 'KeyA':moveLeft=true;break;case 'KeyD':moveRight=true;break;case 'Space':handbrake=true;break;}});
-document.addEventListener('keyup',e=>{switch(e.code){case 'KeyW':moveForward=false;break;case 'KeyS':moveBackward=false;break;case 'KeyA':moveLeft=false;break;case 'KeyD':moveRight=false;break;case 'Space':handbrake=false;break;}});
-
-// ===================== HUD UPGRADES =====================
-document.getElementById('buySpeed').addEventListener('click',()=>{if(money>=50){upgrades.speed+=0.2;money-=50;}});
-document.getElementById('buyHandling').addEventListener('click',()=>{if(money>=50){upgrades.handling+=0.2;money-=50;}});
-document.getElementById('buyDrift').addEventListener('click',()=>{if(money>=50){upgrades.drift+=0.2;money-=50;}});
-
-// ===================== GAME LOOP =====================
+// --- Animate ---
 function animate(){
-  requestAnimationFrame(animate);
-
-  // Player movement
-  let accel=0;if(moveForward)accel+=0.1*upgrades.speed;if(moveBackward)accel-=0.06;
-  velocity.z+=accel; velocity.z*=(handbrake?0.85:0.95);
-  const maxSpeed=2.2*upgrades.speed; velocity.z=Math.max(-maxSpeed*0.7,Math.min(velocity.z,maxSpeed));
-  let steer=0;if(moveLeft)steer-=1;if(moveRight)steer+=1;
-  carGroup.rotation.y+=steer*0.05*upgrades.handling;
-  carGroup.position.x+=Math.sin(carGroup.rotation.y)*velocity.z;
-  carGroup.position.z+=Math.cos(carGroup.rotation.y)*velocity.z;
-  const wheelSpeed=velocity.z*4; playerWheels.forEach(w=>{w.rotation.x+=wheelSpeed;});
-
-  // Coin collection
-  coins.forEach((c,i)=>{if(c.position.distanceTo(carGroup.position)<2){scene.remove(c);coins.splice(i,1);money+=10;}});
-  if(coins.length<10)spawnCoins(5);
-
-  // Camera
-  const camOffset=new THREE.Vector3(0,14,20); camOffset.applyQuaternion(carGroup.quaternion); camOffset.add(carGroup.position);
-  camera.position.lerp(camOffset,0.1); camera.lookAt(carGroup.position.clone().add(new THREE.Vector3(0,2,5)));
-
-  // HUD update
-  document.getElementById('speed').textContent=Math.floor(Math.abs(velocity.z)*45);
-  document.getElementById('points').textContent=Math.floor(driftPoints);
-  document.getElementById('money').textContent=Math.floor(money);
-
-  renderer.render(scene,camera);
+    requestAnimationFrame(animate);
+    car.rotation.y += 0.01; // slowly spin so you see it
+    renderer.render(scene,camera);
 }
 animate();
-window.addEventListener('resize',()=>{camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});
+
+// --- Resize ---
+window.addEventListener('resize',()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight);
+});
 </script>
 </body>
 </html>
