@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Faz Drifting BFD - GTA Style Missions</title>
+<title>Faz Drifting BFD - Playable</title>
 <script src="https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.min.js"></script>
 <style>
 body{margin:0;overflow:hidden;background:#000;font-family:Arial,sans-serif;}
@@ -22,8 +22,6 @@ canvas{display:block;}
 <div class="hud-panel">Speed: <span id="speed">0</span> km/h</div>
 <div class="hud-panel">Drift Points: <span id="points">0</span></div>
 <div class="hud-panel">Money: $<span id="money">0</span></div>
-<div class="hud-panel">Mission: <span id="mission">None</span></div>
-<div class="hud-panel">Wanted: <span id="wanted">0</span></div>
 <div class="hud-panel">Upgrades:
   <div class="upgrade-buttons">
     <button id="buySpeed">Speed +$50</button>
@@ -34,12 +32,8 @@ canvas{display:block;}
 </div>
 
 <script>
-// ===================== ACCOUNT SYSTEM =====================
-let username="",money=0,driftPoints=0,upgrades={speed:1,handling:1,drift:1};
-function saveAccount(){if(username)localStorage.setItem('fd_'+username,JSON.stringify({money,driftPoints,upgrades}));}
-function loadAccount(user){const d=localStorage.getItem('fd_'+user);return d?JSON.parse(d):null;}
-username="Player1"; // simple auto-login for demo
-const acc=loadAccount(username); if(acc){money=acc.money;driftPoints=acc.driftPoints;upgrades=acc.upgrades;}
+// ===================== GAME VARIABLES =====================
+let money=0,driftPoints=0,upgrades={speed:1,handling:1,drift:1};
 
 // ===================== THREE.JS SETUP =====================
 const scene=new THREE.Scene();
