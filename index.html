@@ -1,254 +1,391 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Faz Bradford Drifting</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<style>
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: #000;
-    touch-action: none;
-    font-family: Arial, sans-serif;
-  }
-
-  /* HUD */
-  #hud {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    color: white;
-    font-size: 16px;
-    z-index: 10;
-  }
-
-  #speed {
-    font-size: 20px;
-    margin-bottom: 6px;
-  }
-
-  #minimap {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    width: 120px;
-    height: 120px;
-    background: rgba(0,0,0,0.6);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  #minimap canvas {
-    width: 100%;
-    height: 100%;
-  }
-
-  /* Controls */
-  .controls {
-    position: fixed;
-    bottom: 20px;
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 20px;
-    pointer-events: none;
-  }
-
-  .group {
-    display: flex;
-    gap: 15px;
-    pointer-events: auto;
-  }
-
-  .btn {
-    width: 65px;
-    height: 65px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.25);
-    color: white;
-    font-size: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-  }
-
-  .btn:active {
-    background: rgba(255,255,255,0.45);
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faz Drifting BFD</title>
+    <style>
+        body { margin: 0; background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; font-family: Arial, sans-serif; color: #fff; }
+        canvas { background: #333; border: 3px solid #444; box-shadow: 0 0 30px rgba(0,0,0,0.9); cursor: none; }
+        h1 { color: #ff4444; margin: 0 0 10px 0; text-shadow: 0 0 10px #ff0000; }
+        p { color: #ccc; margin: 0; text-align: center; max-width: 800px; }
+    </style>
 </head>
 <body>
+    <h1>Faz Drifting BFD</h1>
+    <p>ARROW KEYS to drive | DRIFT by sharp turns at speed! | Missions: 1 or 2 | R=Reset | ESC/M=Menu</p>
+    <canvas id="canvas" width="800" height="600" tabindex="1"></canvas>
 
-<!-- HUD -->
-<div id="hud">
-  <div id="speed">0 km/h</div>
-</div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
 
-<div id="minimap">
-  <canvas id="map" width="120" height="120"></canvas>
-</div>
+        canvas.focus();
 
-<!-- CONTROLS -->
-<div class="controls">
-  <div class="group">
-    <div class="btn" id="left">⬅️</div>
-    <div class="btn" id="right">➡️</div>
-  </div>
-  <div class="group">
-    <div class="btn" id="handbrake">🅗</div>
-    <div class="btn" id="brake">⬇️</div>
-    <div class="btn" id="gas">⬆️</div>
-  </div>
-</div>
+        // Car
+        const car = {
+            x: 400,
+            y: 300,
+            width: 28,
+            height: 48,
+            angle: 0,
+            velocityX: 0,
+            velocityY: 0,
+            velMag: 0,
+            accelForce: 0.28,
+            drag: 0.965,
+            turnSpeed: 0.035
+        };
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
-<script>
-/* ================= SCENE ================= */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9ecae1);
-scene.fog = new THREE.Fog(0x9ecae1, 40, 240);
+        // Input
+        const keys = {};
+        const pressed = {};
+        window.addEventListener('keydown', e => {
+            if (!keys[e.key]) {
+                pressed[e.key] = true;
+            }
+            keys[e.key] = true;
+            e.preventDefault();
+        });
+        window.addEventListener('keyup', e => {
+            keys[e.key] = false;
+            pressed[e.key] = false;
+            e.preventDefault();
+        });
 
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 500);
+        // Game state
+        let gameState = 'menu'; // menu, playing, success
+        let currentMission = 0;
+        let startTime = 0;
+        let particles = [];
 
-const renderer = new THREE.WebGLRenderer({ antialias:false });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
-document.body.appendChild(renderer.domElement);
+        const missions = [
+            {
+                name: 'Drift King',
+                type: 'drift',
+                target: 3000,
+                current: 0
+            },
+            {
+                name: 'Checkpoint Dash',
+                type: 'checkpoints',
+                target: 6,
+                current: 0,
+                checkpoints: [],
+                currentCp: 0
+            }
+        ];
 
-/* ================= LIGHT ================= */
-scene.add(new THREE.AmbientLight(0xffffff,0.6));
-const sun = new THREE.DirectionalLight(0xffffff,0.8);
-sun.position.set(50,100,20);
-scene.add(sun);
+        function resetMission() {
+            car.x = 400;
+            car.y = 300;
+            car.angle = 0;
+            car.velocityX = 0;
+            car.velocityY = 0;
+            car.velMag = 0;
+            const m = missions[currentMission];
+            m.current = 0;
+            particles.length = 0;
+            startTime = Date.now();
+            if (m.type === 'checkpoints') {
+                m.checkpoints = [];
+                for (let i = 0; i < 6; i++) {
+                    const ang = (i / 6) * Math.PI * 2 + Math.PI / 4;
+                    m.checkpoints.push({
+                        x: 400 + Math.cos(ang) * 240 + (Math.random() - 0.5) * 120,
+                        y: 300 + Math.sin(ang) * 190 + (Math.random() - 0.5) * 90,
+                        r: 30,
+                        hit: false
+                    });
+                }
+                m.currentCp = 0;
+            }
+        }
 
-/* ================= CITY ================= */
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(500,500),
-  new THREE.MeshStandardMaterial({color:0x3a3a3a})
-);
-ground.rotation.x = -Math.PI/2;
-scene.add(ground);
+        function update() {
+            // Update particles
+            particles.forEach(p => {
+                p.vx *= 0.96;
+                p.vy *= 0.96;
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+            });
+            particles = particles.filter(p => p.life > 0);
 
-function road(x,z,w,h){
-  const r = new THREE.Mesh(
-    new THREE.PlaneGeometry(w,h),
-    new THREE.MeshStandardMaterial({color:0x222222})
-  );
-  r.rotation.x = -Math.PI/2;
-  r.position.set(x,0.01,z);
-  scene.add(r);
-}
+            // Menu input
+            if (gameState === 'menu') {
+                if (pressed['1']) {
+                    pressed['1'] = false;
+                    currentMission = 0;
+                    gameState = 'playing';
+                    resetMission();
+                }
+                if (pressed['2']) {
+                    pressed['2'] = false;
+                    currentMission = 1;
+                    gameState = 'playing';
+                    resetMission();
+                }
+                return;
+            }
 
-for(let i=-200;i<=200;i+=40){
-  road(i,0,12,500);
-  road(0,i,500,12);
-}
+            // Success input
+            if (gameState === 'success') {
+                if (pressed['r'] || pressed['R']) {
+                    pressed['r'] = pressed['R'] = false;
+                    resetMission();
+                    gameState = 'playing';
+                }
+                if (pressed['Escape'] || pressed['m'] || pressed['M']) {
+                    pressed['Escape'] = pressed['m'] = pressed['M'] = false;
+                    gameState = 'menu';
+                }
+                return;
+            }
 
-function building(x,z){
-  const h = 6 + Math.random()*24;
-  const b = new THREE.Mesh(
-    new THREE.BoxGeometry(12,h,12),
-    new THREE.MeshStandardMaterial({color:0x8fa3b8})
-  );
-  b.position.set(x,h/2,z);
-  scene.add(b);
-}
+            // Playing update
+            if (gameState !== 'playing') return;
 
-for(let x=-180;x<=180;x+=20){
-  for(let z=-180;z<=180;z+=20){
-    if(Math.abs(x)<10||Math.abs(z)<10) continue;
-    if(Math.random()>0.65) building(x,z);
-  }
-}
+            // Controls
+            if (keys['ArrowUp']) {
+                car.velocityX += Math.sin(car.angle) * car.accelForce;
+                car.velocityY -= Math.cos(car.angle) * car.accelForce;
+            } else if (keys['ArrowDown']) {
+                car.velocityX += Math.sin(car.angle + Math.PI) * car.accelForce * 0.7;
+                car.velocityY -= Math.cos(car.angle + Math.PI) * car.accelForce * 0.7;
+            }
 
-/* ================= PLAYER ================= */
-const car = new THREE.Mesh(
-  new THREE.BoxGeometry(2,1,4),
-  new THREE.MeshStandardMaterial({color:0xff3333})
-);
-car.position.y = 0.5;
-scene.add(car);
+            // Drag
+            car.velocityX *= car.drag;
+            car.velocityY *= car.drag;
 
-let speed = 0;
-let direction = 0;
-let driftAngle = 0;
+            // Steering
+            car.velMag = Math.hypot(car.velocityX, car.velocityY);
+            if (car.velMag > 0.8) {
+                const turnRate = car.turnSpeed * Math.min(car.velMag / 4, 1.8);
+                if (keys['ArrowLeft']) car.angle -= turnRate;
+                if (keys['ArrowRight']) car.angle += turnRate;
+            }
 
-/* ================= INPUT ================= */
-const input = {gas:false, brake:false, left:false, right:false, handbrake:false};
+            // Position update
+            car.x += car.velocityX;
+            car.y += car.velocityY;
 
-function bind(id,key){
-  const el = document.getElementById(id);
-  el.addEventListener("touchstart",e=>{e.preventDefault();input[key]=true;});
-  el.addEventListener("touchend",e=>{e.preventDefault();input[key]=false;});
-}
+            // Boundaries
+            if (car.x < 20) { car.x = 20; car.velocityX *= -0.5; }
+            if (car.x > 780) { car.x = 780; car.velocityX *= -0.5; }
+            if (car.y < 30) { car.y = 30; car.velocityY *= -0.5; }
+            if (car.y > 570) { car.y = 570; car.velocityY *= -0.5; }
 
-bind("gas","gas");
-bind("brake","brake");
-bind("left","left");
-bind("right","right");
-bind("handbrake","handbrake");
+            // Mission logic
+            const m = missions[currentMission];
+            if (m.type === 'drift') {
+                if (car.velMag > 2.5) {
+                    const velAngle = Math.atan2(car.velocityY, car.velocityX);
+                    let driftAngle = Math.abs(velAngle - car.angle);
+                    if (driftAngle > Math.PI) driftAngle = 2 * Math.PI - driftAngle;
+                    if (driftAngle > 0.3) {
+                        const scoreAdd = (driftAngle ** 1.5) * car.velMag * 0.18;
+                        m.current += scoreAdd;
+                        // Emit smoke
+                        const smokeCount = Math.floor(driftAngle * 2) + 1;
+                        for (let s = 0; s < smokeCount; s++) {
+                            const smokeAng = velAngle + Math.PI + (Math.random() - 0.5) * 0.6;
+                            const px = car.x + Math.sin(smokeAng) * (18 + Math.random() * 12);
+                            const py = car.y - Math.cos(smokeAng) * (18 + Math.random() * 12);
+                            particles.push({
+                                x: px,
+                                y: py,
+                                vx: Math.sin(smokeAng) * 0.4 + (Math.random() - 0.5) * 1.8,
+                                vy: -Math.cos(smokeAng) * 0.4 + (Math.random() - 0.5) * 1.8,
+                                life: 30 + Math.random() * 30,
+                                maxLife: 30 + Math.random() * 30,
+                                size: 3 + Math.random() * 4
+                            });
+                        }
+                    }
+                }
+                if (m.current >= m.target) {
+                    gameState = 'success';
+                }
+            } else if (m.type === 'checkpoints') {
+                const cp = m.checkpoints[m.currentCp];
+                if (Math.hypot(car.x - cp.x, car.y - cp.y) < cp.r) {
+                    m.current++;
+                    m.currentCp++;
+                    cp.hit = true;
+                    if (m.currentCp >= m.checkpoints.length) {
+                        gameState = 'success';
+                    }
+                }
+            }
 
-/* ================= CAMERA FOLLOW ================= */
-const camOffset = new THREE.Vector3(0,6,12);
+            // Global keys
+            if (pressed['r'] || pressed['R']) {
+                pressed['r'] = pressed['R'] = false;
+                resetMission();
+            }
+            if (pressed['Escape'] || pressed['m'] || pressed['M']) {
+                pressed['Escape'] = pressed['m'] = pressed['M'] = false;
+                gameState = 'menu';
+            }
+        }
 
-/* ================= MINIMAP ================= */
-const map = document.getElementById("map");
-const mctx = map.getContext("2d");
+        function draw() {
+            // Road
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(0, 0, 800, 600);
 
-/* ================= LOOP ================= */
-function animate(){
-  requestAnimationFrame(animate);
+            // Road lines (animated)
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.setLineDash([30, 30]);
+            ctx.lineDashOffset = -(Date.now() / 80) % 60;
+            ctx.beginPath();
+            ctx.moveTo(400, 0);
+            ctx.lineTo(400, 600);
+            ctx.moveTo(0, 300);
+            ctx.lineTo(800, 300);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
 
-  /* Acceleration */
-  if(input.gas) speed += 0.02;
-  if(input.brake) speed -= 0.03;
-  speed *= input.handbrake ? 0.92 : 0.97;
+            // Checkpoints
+            if (gameState === 'playing' && missions[currentMission].type === 'checkpoints') {
+                const m = missions[currentMission];
+                m.checkpoints.forEach((cp, i) => {
+                    ctx.save();
+                    if (i === m.currentCp) {
+                        ctx.fillStyle = `rgba(0, 255, 0, ${0.8 + 0.2 * Math.sin(Date.now() / 150)})`;
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 4;
+                    } else if (cp.hit) {
+                        ctx.fillStyle = '#555';
+                    } else {
+                        ctx.fillStyle = '#fff';
+                    }
+                    ctx.beginPath();
+                    ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
+                    ctx.fill();
+                    if (i === m.currentCp) {
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                });
+            }
 
-  /* Steering */
-  let turnStrength = input.handbrake ? 0.06 : 0.04;
-  if(input.left) direction += turnStrength;
-  if(input.right) direction -= turnStrength;
+            // Particles (smoke)
+            particles.forEach(p => {
+                ctx.save();
+                const alpha = p.life / p.maxLife;
+                ctx.globalAlpha = alpha * alpha;
+                ctx.fillStyle = '#888';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
 
-  /* Drift */
-  driftAngle += (direction - driftAngle) * (input.handbrake ? 0.15 : 0.05);
+            // Car
+            ctx.save();
+            ctx.translate(car.x, car.y);
+            ctx.rotate(car.angle);
+            ctx.fillStyle = '#ff4444';
+            ctx.shadowColor = '#ff2222';
+            ctx.shadowBlur = 15;
+            ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
+            ctx.shadowBlur = 0;
+            // Details
+            ctx.fillStyle = '#333';
+            ctx.fillRect(-11, -22, 22, 14); // front
+            ctx.fillRect(-11, 6, 22, 14); // rear
+            // Wheels
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-13, -25, 7, 10);
+            ctx.fillRect(6, -25, 7, 10);
+            ctx.fillRect(-13, 15, 7, 10);
+            ctx.fillRect(6, 15, 7, 10);
+            ctx.restore();
 
-  car.rotation.y = driftAngle;
-  car.position.x -= Math.sin(direction) * speed;
-  car.position.z -= Math.cos(direction) * speed;
+            // UI
+            if (gameState === 'menu') {
+                ctx.fillStyle = 'rgba(0,0,0,0.9)';
+                ctx.fillRect(120, 120, 560, 360);
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 42px Arial';
+                ctx.fillText('FAZ DRIFTING BFD', 400, 200);
+                ctx.font = 'bold 26px Arial';
+                ctx.fillStyle = '#ff4444';
+                ctx.fillText('1. DRIFT KING', 400, 280);
+                ctx.fillText('(Accumulate 3000 Drift Points)', 400, 310);
+                ctx.fillStyle = '#fff';
+                ctx.fillText('2. CHECKPOINT DASH', 400, 370);
+                ctx.fillText('(Hit 6 Checkpoints in Order)', 400, 400);
+                ctx.font = '20px Arial';
+                ctx.fillStyle = '#ccc';
+                ctx.fillText('← → ↑ ↓ : Steer / Accel / Brake', 400, 460);
+                ctx.fillText('DRIFT: Counter-steer sharply at HIGH SPEED!', 400, 490);
+            } else if (gameState === 'playing') {
+                const m = missions[currentMission];
+                // Mission HUD
+                ctx.fillStyle = 'rgba(0,0,0,0.85)';
+                ctx.fillRect(15, 15, 360, 85);
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 22px Arial';
+                ctx.fillText(m.name, 25, 40);
+                ctx.font = '20px Arial';
+                const progText = m.type === 'drift' ? Math.floor(m.current).toLocaleString() : m.current;
+                ctx.fillText(`${progText} / ${m.target}`, 25, 65);
+                // Progress bar
+                ctx.fillStyle = '#555';
+                ctx.fillRect(25, 72, 340, 16);
+                const percent = Math.min(1, m.current / m.target);
+                ctx.fillStyle = '#00ff88';
+                ctx.fillRect(25, 72, 340 * percent, 16);
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                ctx.fillText(`Time: ${elapsed}s`, 25, 97);
+                // Speed
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#fff';
+                ctx.fillText(`Speed: ${Math.floor(car.velMag * 7)} km/h`, 785, 40);
+            } else if (gameState === 'success') {
+                const m = missions[currentMission];
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                ctx.fillStyle = 'rgba(0,0,0,0.98)';
+                ctx.fillRect(0, 0, 800, 600);
+                ctx.fillStyle = '#00ff44';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 52px Arial';
+                ctx.fillText('MISSION COMPLETE!', 400, 240);
+                ctx.font = 'bold 30px Arial';
+                ctx.fillStyle = '#fff';
+                ctx.fillText(m.name, 400, 300);
+                ctx.font = 'bold 26px Arial';
+                if (m.type === 'drift') {
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.fillText(`${Math.floor(m.current).toLocaleString()} Drift Points`, 400, 360);
+                } else {
+                    ctx.fillStyle = '#00ff88';
+                    ctx.fillText(`Completed in ${elapsed}s`, 400, 360);
+                }
+                ctx.fillStyle = '#fff';
+                ctx.font = '22px Arial';
+                ctx.fillText('R: Retry Mission', 400, 430);
+                ctx.fillText('ESC or M: Main Menu', 400, 460);
+            }
+        }
 
-  /* Camera follow turn */
-  const camTarget = car.position.clone()
-    .add(camOffset.clone().applyAxisAngle(new THREE.Vector3(0,1,0), driftAngle));
-  camera.position.lerp(camTarget,0.1);
-  camera.lookAt(car.position);
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
 
-  /* Speed HUD */
-  document.getElementById("speed").innerText =
-    Math.abs(Math.round(speed*120))+" km/h";
-
-  /* Minimap */
-  mctx.clearRect(0,0,120,120);
-  mctx.fillStyle="#444";
-  mctx.fillRect(0,0,120,120);
-  mctx.fillStyle="red";
-  mctx.fillRect(
-    60 + car.position.x*0.1,
-    60 + car.position.z*0.1,
-    4,4
-  );
-
-  renderer.render(scene,camera);
-}
-animate();
-
-/* ================= RESIZE ================= */
-addEventListener("resize",()=>{
-  camera.aspect=innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-});
-</script>
+        loop();
+    </script>
 </body>
 </html>
