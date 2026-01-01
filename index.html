@@ -8,7 +8,6 @@
 <style>
 body{margin:0;overflow:hidden;font-family:Arial,sans-serif;background:#000;}
 canvas{display:block;}
-
 /* Start/Login Screen */
 #loginScreen{
   position:absolute;top:0;left:0;width:100%;height:100%;
@@ -16,23 +15,26 @@ canvas{display:block;}
   display:flex;justify-content:center;align-items:center;flex-direction:column;color:white;
   font-size:28px;text-align:center;z-index:20;text-shadow:0 0 15px black;
 }
-#loginScreen input{
-  font-size:20px;padding:10px;margin:5px;border-radius:10px;border:none;
-}
+#loginScreen input{font-size:20px;padding:10px;margin:5px;border-radius:10px;border:none;}
 #loginScreen button{
   font-size:20px;padding:10px 20px;margin-top:10px;border-radius:10px;border:none;
   cursor:pointer;background:#ff4444;color:white;
 }
-
-/* HUD */
+/* Modern HUD */
 #hud{
-  position:absolute;top:20px;left:20px;color:white;background:rgba(0,0,0,0.7);
-  padding:20px;border-radius:15px;z-index:10;font-size:18px;box-shadow:0 0 20px rgba(255,68,68,0.5);
+  position:absolute;top:20px;left:20px;width:320px;
+  display:flex;flex-direction:column;gap:8px;
+  z-index:10;
 }
-#instructions{
-  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
-  background:rgba(0,0,0,0.8);padding:20px;border-radius:15px;color:#fff;
-  text-align:center;z-index:10;max-width:90%;font-size:16px;
+.hud-panel{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 15px;background:rgba(0,0,0,0.6);border-radius:12px;
+  box-shadow:0 0 15px rgba(0,0,0,0.7);color:white;font-size:16px;
+  font-family: 'Segoe UI', sans-serif;
+}
+.upgrade-buttons{display:flex;flex-direction:column;margin-top:5px;}
+.upgrade-buttons button{
+  padding:5px 10px;margin-top:3px;border-radius:8px;border:none;background:#44ff44;color:black;cursor:pointer;font-size:14px;
 }
 </style>
 </head>
@@ -48,30 +50,26 @@ canvas{display:block;}
 </div>
 
 <div id="hud">
-Speed: <span id="speed">0</span> km/h | Drift: <span id="points">0</span> | Money: $<span id="money">0</span> | Mission: <span id="mission">None</span>
-</div>
-
-<div id="instructions">
-WASD = Accelerate/Brake/Steer | SPACE = Drift | Collect coins, complete missions!
+  <div class="hud-panel">Speed: <span id="speed">0</span> km/h</div>
+  <div class="hud-panel">Drift: <span id="points">0</span></div>
+  <div class="hud-panel">Money: $<span id="money">0</span></div>
+  <div class="hud-panel">Mission: <span id="mission">None</span></div>
+  <div class="hud-panel">Wanted: <span id="wantedStars">0</span></div>
+  <div class="hud-panel">Upgrades:
+    <div class="upgrade-buttons">
+      <button id="buySpeed">Speed (+$50)</button>
+      <button id="buyHandling">Handling (+$50)</button>
+      <button id="buyDrift">Drift (+$50)</button>
+    </div>
+  </div>
 </div>
 
 <script>
-// =======================
-// Account System
-// =======================
-let username="";
-let driftPoints=0;
-let money=0;
-let upgrades={speed:1,handling:1,drift:1};
+// ===================== Account System =====================
+let username="",driftPoints=0,money=0,upgrades={speed:1,handling:1,drift:1};
 let mission={active:false,pos:null,reward:0};
-
-function saveAccount(user){
-  localStorage.setItem('fd_account_'+user,JSON.stringify({password:loadAccount(user).password,driftPoints,money,upgrades,mission}));
-}
-function loadAccount(user){
-  const data=localStorage.getItem('fd_account_'+user);
-  return data?JSON.parse(data):null;
-}
+function saveAccount(user){localStorage.setItem('fd_account_'+user,JSON.stringify({password:loadAccount(user).password,driftPoints,money,upgrades,mission}));}
+function loadAccount(user){const data=localStorage.getItem('fd_account_'+user);return data?JSON.parse(data):null;}
 function hash(str){let h=0;for(let i=0;i<str.length;i++){h=((h<<5)-h)+str.charCodeAt(i);h|=0;}return h;}
 
 document.getElementById('registerBtn').addEventListener('click',()=>{
@@ -82,7 +80,6 @@ document.getElementById('registerBtn').addEventListener('click',()=>{
   localStorage.setItem('fd_account_'+user,JSON.stringify({password:hash(pass),driftPoints:0,money:0,upgrades:{speed:1,handling:1,drift:1},mission:{active:false,pos:null,reward:0}}));
   document.getElementById('loginMsg').innerText="Registered! You can login now.";
 });
-
 document.getElementById('loginBtn').addEventListener('click',()=>{
   const user=document.getElementById('username').value.trim();
   const pass=document.getElementById('password').value;
@@ -92,136 +89,195 @@ document.getElementById('loginBtn').addEventListener('click',()=>{
   username=user; driftPoints=acc.driftPoints; money=acc.money; upgrades=acc.upgrades; mission=acc.mission;
   startGame();
 });
-
 setInterval(()=>{if(username) saveAccount(username);},5000);
 
-// =======================
-// Three.js Setup
-// =======================
+// ===================== Three.js Setup =====================
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x87ceeb);
 scene.fog=new THREE.FogExp2(0x87ceeb,0.00025);
 const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,5000);
 camera.position.set(0,15,30);
-
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth,window.innerHeight);
 renderer.shadowMap.enabled=true;
 document.body.appendChild(renderer.domElement);
 
 // Lights
-const ambient=new THREE.AmbientLight(0x404040,0.6);
-scene.add(ambient);
+scene.add(new THREE.AmbientLight(0x404040,0.6));
 const dirLight=new THREE.DirectionalLight(0xffffff,1.2);
 dirLight.position.set(50,100,50); dirLight.castShadow=true; scene.add(dirLight);
 
 // Ground
-const groundGeo=new THREE.PlaneGeometry(1000,1000);
-const groundMat=new THREE.MeshLambertMaterial({color:0x222222});
-const ground=new THREE.Mesh(groundGeo,groundMat);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(1000,1000),new THREE.MeshLambertMaterial({color:0x222222}));
 ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
 
-// Small City Buildings
+// Buildings
 const buildings=[];
 for(let i=0;i<12;i++){
   const w=20+Math.random()*30,h=20+Math.random()*60,d=20+Math.random()*30;
-  const geo=new THREE.BoxGeometry(w,h,d);
-  const mat=new THREE.MeshLambertMaterial({color:0x888888*Math.random()});
-  const b=new THREE.Mesh(geo,mat);
-  b.position.set((Math.random()-0.5)*400, h/2, (Math.random()-0.5)*400);
-  b.castShadow=true; b.receiveShadow=true;
-  scene.add(b); buildings.push(b);
+  const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:0x888888*Math.random()}));
+  b.position.set((Math.random()-0.5)*400,h/2,(Math.random()-0.5)*400);
+  b.castShadow=true;b.receiveShadow=true; scene.add(b); buildings.push(b);
 }
 
 // Player Car
 const carGroup=new THREE.Group();
-const bodyGeo=new THREE.BoxGeometry(2.2,1.1,4.4);
-const bodyMat=new THREE.MeshLambertMaterial({color:0xff3333});
-const body=new THREE.Mesh(bodyGeo,bodyMat); body.castShadow=true; carGroup.add(body);
-
-// Wheels
+const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.1,4.4),new THREE.MeshLambertMaterial({color:0xff3333}));
+body.castShadow=true; carGroup.add(body);
 const wheelGeo=new THREE.CylinderGeometry(0.45,0.45,0.35,12);
 const wheelMat=new THREE.MeshLambertMaterial({color:0x111111});
 const playerWheels=[];
 for(let i=0;i<4;i++){
-  const wheel=new THREE.Mesh(wheelGeo,wheelMat);
-  wheel.rotation.z=Math.PI/2; wheel.castShadow=true; playerWheels.push(wheel); carGroup.add(wheel);
+  const wheel=new THREE.Mesh(wheelGeo,wheelMat); wheel.rotation.z=Math.PI/2; wheel.castShadow=true;
+  playerWheels.push(wheel); carGroup.add(wheel);
 }
 playerWheels[0].position.set(-1.2,-0.55,1.6); playerWheels[1].position.set(1.2,-0.55,1.6);
 playerWheels[2].position.set(-1.2,-0.55,-1.6); playerWheels[3].position.set(1.2,-0.55,-1.6);
-
 scene.add(carGroup); carGroup.position.set(0,0.5,0);
 
 // Loot coins
-const coins=[];
-for(let i=0;i<20;i++){
-  const geo=new THREE.SphereGeometry(0.5,8,6);
-  const mat=new THREE.MeshStandardMaterial({color:0xffcc00});
-  const coin=new THREE.Mesh(geo,mat);
-  coin.position.set((Math.random()-0.5)*400,0.5,(Math.random()-0.5)*400);
-  scene.add(coin); coins.push(coin);
+let coins=[];
+function spawnCoins(num=20){
+  for(let i=0;i<num;i++){
+    const c=new THREE.Mesh(new THREE.SphereGeometry(0.5,8,6),new THREE.MeshStandardMaterial({color:0xffcc00}));
+    c.position.set((Math.random()-0.5)*400,0.5,(Math.random()-0.5)*400);
+    scene.add(c); coins.push(c);
+  }
 }
+spawnCoins();
 
-// =======================
-// Player Input
-// =======================
+// ===================== Input =====================
 const velocity=new THREE.Vector3();
 let moveForward=false,moveBackward=false,moveLeft=false,moveRight=false,handbrake=false;
-document.addEventListener('keydown',e=>{
-  switch(e.code){case 'KeyW': moveForward=true;break;case 'KeyS': moveBackward=true;break;
-  case 'KeyA': moveLeft=true;break;case 'KeyD': moveRight=true;break;case 'Space': handbrake=true;break;}
-});
-document.addEventListener('keyup',e=>{
-  switch(e.code){case 'KeyW': moveForward=false;break;case 'KeyS': moveBackward=false;break;
-  case 'KeyA': moveLeft=false;break;case 'KeyD': moveRight=false;break;case 'Space': handbrake=false;break;}
-});
+document.addEventListener('keydown',e=>{switch(e.code){
+  case 'KeyW':moveForward=true;break;case 'KeyS':moveBackward=true;break;
+  case 'KeyA':moveLeft=true;break;case 'KeyD':moveRight=true;break;
+  case 'Space':handbrake=true;break;
+}});
+document.addEventListener('keyup',e=>{switch(e.code){
+  case 'KeyW':moveForward=false;break;case 'KeyS':moveBackward=false;break;
+  case 'KeyA':moveLeft=false;break;case 'KeyD':moveRight=false;break;
+  case 'Space':handbrake=false;break;
+}});
 
-// =======================
-// Start Game
-// =======================
-function startGame(){
-  document.getElementById('loginScreen').style.display='none';
-  animate();
+// ===================== Upgrades Buttons =====================
+document.getElementById('buySpeed').addEventListener('click',()=>{if(money>=50){upgrades.speed+=0.2;money-=50;}});
+document.getElementById('buyHandling').addEventListener('click',()=>{if(money>=50){upgrades.handling+=0.2;money-=50;}});
+document.getElementById('buyDrift').addEventListener('click',()=>{if(money>=50){upgrades.drift+=0.2;money-=50;}});
+
+// ===================== Missions =====================
+let checkpoint=null;
+function spawnMission(){
+  if(mission.active) return;
+  const x=(Math.random()-0.5)*300;
+  const z=(Math.random()-0.5)*300;
+  const geo=new THREE.BoxGeometry(3,1,3);
+  const mat=new THREE.MeshStandardMaterial({color:0x00ff00});
+  checkpoint=new THREE.Mesh(geo,mat); checkpoint.position.set(x,0.5,z);
+  scene.add(checkpoint);
+  mission.active=true; mission.pos=new THREE.Vector3(x,0.5,z); mission.reward=50+Math.floor(Math.random()*50);
+}
+setInterval(spawnMission,20000);
+
+// ===================== Traffic AI =====================
+const npcs = [];
+const npcColors = [0x4444ff,0xaa44ff,0x44ff44,0xffff44,0xff8844,0x44aaff,0xff44aa,0xaaff44];
+function createNPC(x,z,rotY,color){
+  const npcGroup = carGroup.clone();
+  npcGroup.position.set(x,0.5,z);
+  npcGroup.rotation.y = rotY;
+  npcGroup.scale.setScalar(0.8+Math.random()*0.2);
+  npcGroup.traverse(child=>{if(child.isMesh){child.castShadow=true;child.receiveShadow=true;}});
+  npcGroup.userData = {velocityZ:0,targetSpeed:1+Math.random()*0.5,maxSpeed:1.5+Math.random()*0.5};
+  scene.add(npcGroup);
+  return npcGroup;
+}
+for(let i=0;i<40;i++){
+  let x=(Math.random()-0.5)*400, z=(Math.random()-0.5)*400, rotY=Math.random()<0.5?0:Math.PI;
+  const color=npcColors[Math.floor(Math.random()*npcColors.length)];
+  npcs.push(createNPC(x,z,rotY,color));
 }
 
-// =======================
-// Animate Loop
-// =======================
+// ===================== Wanted Level =====================
+let wantedLevel = 0;
+function increaseWanted(amount){wantedLevel=Math.min(5,wantedLevel+amount);}
+function decreaseWanted(amount){wantedLevel=Math.max(0,wantedLevel-amount);}
+
+// ===================== Game Loop =====================
+function updateNPCs(){
+  npcs.forEach(npc=>{
+    const ud=npc.userData;
+    ud.velocityZ+=(ud.targetSpeed-ud.velocityZ)*0.05;
+    ud.velocityZ*=0.98;
+    ud.velocityZ=Math.max(-ud.maxSpeed/2,Math.min(ud.velocityZ,ud.maxSpeed));
+    npc.position.x+=Math.sin(npc.rotation.y)*ud.velocityZ;
+    npc.position.z+=Math.cos(npc.rotation.y)*ud.velocityZ;
+    if(Math.abs(npc.position.x)>400 || Math.abs(npc.position.z)>400){
+      npc.rotation.y+=Math.PI; ud.velocityZ*=-0.5;
+    }
+    const dist=npc.position.distanceTo(carGroup.position);
+    if(dist<3.5){
+      const pushDir=new THREE.Vector3().subVectors(carGroup.position,npc.position).normalize();
+      carGroup.position.add(pushDir.multiplyScalar(0.4));
+      npc.position.sub(pushDir.multiplyScalar(0.4));
+      velocity.z*=0.6; ud.velocityZ*=0.6;
+      increaseWanted(1);
+    }
+  });
+}
+function updatePolice(){
+  if(wantedLevel>0){
+    npcs.forEach(npc=>{
+      const ud=npc.userData;
+      const dist=npc.position.distanceTo(carGroup.position);
+      if(dist<50 && Math.random()<0.02){
+        const dir=new THREE.Vector3().subVectors(carGroup.position,npc.position).normalize();
+        npc.position.add(dir.multiplyScalar(ud.maxSpeed));
+      }
+    });
+    decreaseWanted(0.001);
+  }
+}
+
+function startGame(){document.getElementById('loginScreen').style.display='none'; animate();}
+
 function animate(){
   requestAnimationFrame(animate);
 
   // Player movement
-  let accel=0;
-  if(moveForward) accel+=0.1*upgrades.speed; if(moveBackward) accel-=0.06;
+  let accel=0;if(moveForward) accel+=0.1*upgrades.speed;if(moveBackward) accel-=0.06;
   velocity.z+=accel; velocity.z*=(handbrake?0.85:0.95);
   const maxSpeed=2.2*upgrades.speed; velocity.z=Math.max(-maxSpeed*0.7,Math.min(velocity.z,maxSpeed));
-
-  let steer=0; if(moveLeft) steer-=1; if(moveRight) steer+=1;
+  let steer=0;if(moveLeft) steer-=1;if(moveRight) steer+=1;
   carGroup.rotation.y+=steer*0.05*upgrades.handling;
-
   carGroup.position.x+=Math.sin(carGroup.rotation.y)*velocity.z;
   carGroup.position.z+=Math.cos(carGroup.rotation.y)*velocity.z;
-
-  // Rotate wheels
   const wheelSpeed=velocity.z*4; playerWheels.forEach(w=>{w.rotation.x+=wheelSpeed;});
 
-  // Loot collection
+  // Coins
   for(let i=coins.length-1;i>=0;i--){
-    const coin=coins[i];
-    if(coin.position.distanceTo(carGroup.position)<2){
-      money+=10; scene.remove(coin); coins.splice(i,1);
-    }
+    if(coins[i].position.distanceTo(carGroup.position)<2){money+=10; scene.remove(coins[i]); coins.splice(i,1);}
   }
+
+  // Mission
+  if(mission.active && checkpoint && carGroup.position.distanceTo(checkpoint.position)<3){
+    money+=mission.reward; scene.remove(checkpoint); checkpoint=null;
+    mission.active=false; mission.pos=null; mission.reward=0;
+  }
+  if(money<50 && coins.length<10) spawnCoins(10);
+
+  updateNPCs();
+  updatePolice();
 
   // HUD
   document.getElementById('speed').textContent=Math.floor(Math.abs(velocity.z)*45);
   document.getElementById('points').textContent=Math.floor(driftPoints);
   document.getElementById('money').textContent=Math.floor(money);
   document.getElementById('mission').textContent=mission.active?"Drive to checkpoint":"None";
+  document.getElementById('wantedStars').textContent=wantedLevel;
 
   // Camera
-  const camOffset=new THREE.Vector3(0,10,20);
-  camOffset.applyQuaternion(carGroup.quaternion); camOffset.add(carGroup.position);
+  const camOffset=new THREE.Vector3(0,12,18); camOffset.applyQuaternion(carGroup.quaternion); camOffset.add(carGroup.position);
   camera.position.lerp(camOffset,0.1);
   camera.lookAt(carGroup.position.clone().add(new THREE.Vector3(0,2,5)));
 
@@ -229,11 +285,7 @@ function animate(){
 }
 
 // Resize
-window.addEventListener('resize',()=>{
-  camera.aspect=window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth,window.innerHeight);
-});
+window.addEventListener('resize',()=>{camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});
 </script>
 </body>
 </html>
